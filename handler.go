@@ -2,7 +2,12 @@ package sips
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -17,6 +22,23 @@ func withToken(ctx context.Context, token string) context.Context {
 func Token(ctx context.Context) (string, bool) {
 	tok, ok := ctx.Value(ctxKeyToken{}).(string)
 	return tok, ok
+}
+
+func tokenFromRequest(req *http.Request) (string, bool) {
+	auth := req.Header.Get("Authorization")
+	if auth == "" {
+		return "", false
+	}
+
+	parts := strings.SplitN(auth, " ", 2)
+	if len(parts) < 2 {
+		return "", false
+	}
+	if parts[0] != "Bearer" {
+		return "", false
+	}
+
+	return parts[1], true
 }
 
 // PinHandler is an interface satisfied by types that can be used to
@@ -44,7 +66,9 @@ type handler struct {
 }
 
 // Handler returns a new HTTP handler that uses h to handle pinning
-// service requests.
+// service requests. It will handle requests to the "/pins" path and
+// related subpaths, so the user does not need to strip the prefix in
+// order to use it.
 func Handler(h PinHandler) http.Handler {
 	r := mux.NewRouter()
 
@@ -60,7 +84,125 @@ func Handler(h PinHandler) http.Handler {
 }
 
 func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
-	panic("Not implemented.")
+	ctx := req.Context()
+	token, ok := tokenFromRequest(req)
+	if ok {
+		ctx = withToken(ctx, token)
+	}
+
+	query := defaultPinQuery()
+	q := req.URL.Query()
+
+	query.CID = strings.SplitN(q.Get("cid"), ",", 11)
+	if len(query.CID) > 10 {
+		respondError(rw, http.StatusBadRequest, fmt.Sprintf("too many CIDs: %v", len(query.CID)))
+		return
+	}
+
+	query.Name = q.Get("name")
+
+	match := TextMatchingStrategy(q.Get("match"))
+	if match != "" {
+		if !match.valid() {
+			respondError(rw, http.StatusBadRequest, fmt.Sprintf("invalid matching strategy: %q", match))
+			return
+		}
+		query.Match = match
+	}
+
+	status := strings.SplitN(q.Get("status"), ",", 5)
+	if (len(status) == 0) || (len(status) > 4) {
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			"status list must be non-empty and have at most 4 elements",
+		)
+		return
+	}
+	for _, v := range status {
+		query.Status = append(query.Status, RequestStatus(v))
+	}
+
+	before := q.Get("before")
+	if before != "" {
+		var err error
+		query.Before, err = time.Parse(time.RFC3339, before)
+		if err != nil {
+			respondError(
+				rw,
+				http.StatusBadRequest,
+				fmt.Sprintf("invalid before %q: %v", before, err),
+			)
+			return
+		}
+	}
+
+	after := q.Get("after")
+	if after != "" {
+		var err error
+		query.After, err = time.Parse(time.RFC3339, after)
+		if err != nil {
+			respondError(
+				rw,
+				http.StatusBadRequest,
+				fmt.Sprintf("invalid after %q: %v", after, err),
+			)
+			return
+		}
+	}
+
+	limit := q.Get("limit")
+	if limit != "" {
+		plimit, err := strconv.ParseInt(limit, 10, 0)
+		if err != nil {
+			respondError(
+				rw,
+				http.StatusBadRequest,
+				fmt.Sprintf("invalid limit %q: %v", limit, err),
+			)
+			return
+		}
+		query.Limit = int(plimit)
+	}
+
+	meta := q.Get("meta")
+	if meta != "" {
+		err := json.Unmarshal([]byte(meta), &query.Meta)
+		if err != nil {
+			respondError(
+				rw,
+				http.StatusBadRequest,
+				fmt.Sprintf("invalid meta %q: %v", meta, err),
+			)
+			return
+		}
+	}
+
+	pins, err := h.h.Pins(ctx, query)
+	if err != nil {
+		respondError(
+			rw,
+			http.StatusInternalServerError,
+			"",
+		)
+		return
+	}
+
+	err = json.NewEncoder(rw).Encode(struct {
+		Count   int         `json:"count"`
+		Results []PinStatus `json:"results"`
+	}{
+		Count:   len(pins),
+		Results: pins,
+	})
+	if err != nil {
+		respondError(
+			rw,
+			http.StatusInternalServerError,
+			"",
+		)
+		return
+	}
 }
 
 func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
@@ -77,4 +219,35 @@ func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
 
 func (h handler) deletePinByID(rw http.ResponseWriter, req *http.Request) {
 	panic("Not implemented.")
+}
+
+type errorResponse struct {
+	Error errorResponseError `json:"error"`
+}
+
+type errorResponseError struct {
+	Reason  string `json:"reason"`
+	Details string `json:"details,omitempty"`
+}
+
+func respondError(rw http.ResponseWriter, status int, err string) {
+	var buf strings.Builder
+	json.NewEncoder(&buf).Encode(errorResponse{
+		Error: errorResponseError{
+			Reason:  reasonFromStatus(status),
+			Details: err,
+		},
+	})
+	http.Error(rw, buf.String(), status)
+}
+
+func reasonFromStatus(status int) string {
+	// TODO: Handle more statuses?
+	switch status {
+	case http.StatusBadRequest:
+		return "BAD_REQUEST"
+
+	default:
+		return "INTERNAL_ERROR"
+	}
 }

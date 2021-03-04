@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-// PinQuery provides query info for finding pinning requests.
+// PinQuery provides query info for finding pinning requests. Any
+// fields which are zero values, or have length zero in the case of
+// slices, should be considered as though they are not present.
 type PinQuery struct {
 	// CID is a list CIDs that are being searched for.
 	CID []string

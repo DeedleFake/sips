@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -232,50 +233,25 @@ func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 	}
 	ctx = withToken(ctx, token)
 
-	q := req.URL.Query()
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		respondError(
+			rw,
+			http.StatusInternalServerError,
+			"",
+		)
+		return
+	}
+
 	var pin Pin
-
-	pin.CID = q.Get("cid")
-	if pin.CID == "" {
+	err = json.Unmarshal(body, &pin)
+	if err != nil {
 		respondError(
 			rw,
 			http.StatusBadRequest,
-			"CID is required",
+			fmt.Sprintf("failed to parse body: %v", err),
 		)
 		return
-	}
-
-	pin.Name = q.Get("name")
-	if len(pin.Name) > 255 {
-		respondError(
-			rw,
-			http.StatusBadRequest,
-			fmt.Sprintf("name length of %v is longer than the maximum of 255", len(pin.Name)),
-		)
-		return
-	}
-
-	pin.Origins = strings.SplitN(q.Get("origins"), ",", 21)
-	if len(pin.Origins) > 20 {
-		respondError(
-			rw,
-			http.StatusBadRequest,
-			"maximum of 20 origins allowed",
-		)
-		return
-	}
-
-	meta := q.Get("meta")
-	if meta != "" {
-		err := json.Unmarshal([]byte(meta), &pin.Meta)
-		if err != nil {
-			respondError(
-				rw,
-				http.StatusBadRequest,
-				fmt.Sprintf("invalid meta %q: %v", meta, err),
-			)
-			return
-		}
 	}
 
 	status, err := h.h.AddPin(ctx, pin)
@@ -329,11 +305,94 @@ func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
-	panic("Not implemented.")
+	ctx := req.Context()
+	token, ok := tokenFromRequest(req)
+	if !ok {
+		respondError(
+			rw,
+			http.StatusUnauthorized,
+			"no bearer token provided",
+		)
+		return
+	}
+	ctx = withToken(ctx, token)
+
+	vars := mux.Vars(req)
+	id := vars["requestID"]
+	if id == "" {
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			"request ID is required",
+		)
+		return
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		respondError(
+			rw,
+			http.StatusInternalServerError,
+			"",
+		)
+		return
+	}
+
+	var pin Pin
+	err = json.Unmarshal(body, &pin)
+	if err != nil {
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			fmt.Sprintf("failed to parse body: %v", err),
+		)
+		return
+	}
+
+	status, err := h.h.UpdatePin(ctx, id, pin)
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, "")
+		return
+	}
+
+	err = json.NewEncoder(rw).Encode(status)
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, "")
+		return
+	}
 }
 
 func (h handler) deletePinByID(rw http.ResponseWriter, req *http.Request) {
-	panic("Not implemented.")
+	ctx := req.Context()
+	token, ok := tokenFromRequest(req)
+	if !ok {
+		respondError(
+			rw,
+			http.StatusUnauthorized,
+			"no bearer token provided",
+		)
+		return
+	}
+	ctx = withToken(ctx, token)
+
+	vars := mux.Vars(req)
+	id := vars["requestID"]
+	if id == "" {
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			"request ID is required",
+		)
+		return
+	}
+
+	err := h.h.DeletePin(ctx, id)
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, "")
+		return
+	}
+
+	// Yields no response body if successful.
 }
 
 type errorResponse struct {

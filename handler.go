@@ -195,11 +195,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 
 	pins, err := h.h.Pins(ctx, query)
 	if err != nil {
-		respondError(
-			rw,
-			http.StatusInternalServerError,
-			"",
-		)
+		respondError(rw, http.StatusInternalServerError, "")
 		return
 	}
 
@@ -211,11 +207,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 		Results: pins,
 	})
 	if err != nil {
-		respondError(
-			rw,
-			http.StatusInternalServerError,
-			"",
-		)
+		respondError(rw, http.StatusInternalServerError, "")
 		return
 	}
 }
@@ -235,11 +227,7 @@ func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		respondError(
-			rw,
-			http.StatusInternalServerError,
-			"",
-		)
+		respondError(rw, http.StatusInternalServerError, "")
 		return
 	}
 
@@ -330,11 +318,7 @@ func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		respondError(
-			rw,
-			http.StatusInternalServerError,
-			"",
-		)
+		respondError(rw, http.StatusInternalServerError, "")
 		return
 	}
 

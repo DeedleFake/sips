@@ -86,9 +86,15 @@ func Handler(h PinHandler) http.Handler {
 func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	token, ok := tokenFromRequest(req)
-	if ok {
-		ctx = withToken(ctx, token)
+	if !ok {
+		respondError(
+			rw,
+			http.StatusUnauthorized,
+			"no bearer token provided",
+		)
+		return
 	}
+	ctx = withToken(ctx, token)
 
 	q := req.URL.Query()
 	query := defaultPinQuery()
@@ -216,9 +222,15 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	token, ok := tokenFromRequest(req)
-	if ok {
-		ctx = withToken(ctx, token)
+	if !ok {
+		respondError(
+			rw,
+			http.StatusUnauthorized,
+			"no bearer token provided",
+		)
+		return
 	}
+	ctx = withToken(ctx, token)
 
 	q := req.URL.Query()
 	var pin Pin
@@ -280,7 +292,40 @@ func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request) {
-	panic("Not implemented.")
+	ctx := req.Context()
+	token, ok := tokenFromRequest(req)
+	if !ok {
+		respondError(
+			rw,
+			http.StatusUnauthorized,
+			"no bearer token provided",
+		)
+		return
+	}
+	ctx = withToken(ctx, token)
+
+	vars := mux.Vars(req)
+	id := vars["requestID"]
+	if id == "" {
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			"request ID is required",
+		)
+		return
+	}
+
+	status, err := h.h.GetPin(ctx, id)
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, "")
+		return
+	}
+
+	err = json.NewEncoder(rw).Encode(status)
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, "")
+		return
+	}
 }
 
 func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {

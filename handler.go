@@ -90,12 +90,16 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 		ctx = withToken(ctx, token)
 	}
 
-	query := defaultPinQuery()
 	q := req.URL.Query()
+	query := defaultPinQuery()
 
 	query.CID = strings.SplitN(q.Get("cid"), ",", 11)
 	if len(query.CID) > 10 {
-		respondError(rw, http.StatusBadRequest, fmt.Sprintf("too many CIDs: %v", len(query.CID)))
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			fmt.Sprintf("too many CIDs: %v", len(query.CID)),
+		)
 		return
 	}
 
@@ -104,7 +108,11 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 	match := TextMatchingStrategy(q.Get("match"))
 	if match != "" {
 		if !match.valid() {
-			respondError(rw, http.StatusBadRequest, fmt.Sprintf("invalid matching strategy: %q", match))
+			respondError(
+				rw,
+				http.StatusBadRequest,
+				fmt.Sprintf("invalid matching strategy: %q", match),
+			)
 			return
 		}
 		query.Match = match
@@ -206,7 +214,69 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
-	panic("Not implemented.")
+	ctx := req.Context()
+	token, ok := tokenFromRequest(req)
+	if ok {
+		ctx = withToken(ctx, token)
+	}
+
+	q := req.URL.Query()
+	var pin Pin
+
+	pin.CID = q.Get("cid")
+	if pin.CID == "" {
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			"CID is required",
+		)
+		return
+	}
+
+	pin.Name = q.Get("name")
+	if len(pin.Name) > 255 {
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			fmt.Sprintf("name length of %v is longer than the maximum of 255", len(pin.Name)),
+		)
+		return
+	}
+
+	pin.Origins = strings.SplitN(q.Get("origins"), ",", 21)
+	if len(pin.Origins) > 20 {
+		respondError(
+			rw,
+			http.StatusBadRequest,
+			"maximum of 20 origins allowed",
+		)
+		return
+	}
+
+	meta := q.Get("meta")
+	if meta != "" {
+		err := json.Unmarshal([]byte(meta), &pin.Meta)
+		if err != nil {
+			respondError(
+				rw,
+				http.StatusBadRequest,
+				fmt.Sprintf("invalid meta %q: %v", meta, err),
+			)
+			return
+		}
+	}
+
+	status, err := h.h.AddPin(ctx, pin)
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, "")
+		return
+	}
+
+	err = json.NewEncoder(rw).Encode(status)
+	if err != nil {
+		respondError(rw, http.StatusInternalServerError, "")
+		return
+	}
 }
 
 func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request) {

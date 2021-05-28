@@ -104,6 +104,6 @@ func main() {
 
 	err := run(ctx)
 	if err != nil {
-		log.Fatalf("Error: %v", err)
+		log.Fatalf("%v", err)
 	}
 }

@@ -49,14 +49,35 @@ func (c *Client) post(data interface{}, endpoint string, args url.Values) error 
 	return nil
 }
 
+type PinLS struct {
+	CID  string
+	Type PinType
+}
+
 // PinLS gets information about pins from the node.
 func (c *Client) PinLS(pintype PinType, cids ...string) ([]PinLS, error) {
-	var data []PinLS
+	var data struct {
+		Keys map[string]struct {
+			Type PinType
+		}
+	}
 	err := c.post(&data, "/api/v0/pin/ls", url.Values{
 		"type": []string{string(pintype)},
 		"arg":  cids,
 	})
-	return data, err
+	if err != nil {
+		return nil, err
+	}
+
+	pins := make([]PinLS, 0, len(data.Keys))
+	for cid, info := range data.Keys {
+		pins = append(pins, PinLS{
+			CID:  cid,
+			Type: info.Type,
+		})
+	}
+
+	return pins, nil
 }
 
 type ClientOption func(*Client)

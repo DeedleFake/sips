@@ -9,9 +9,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
+	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/internal/log"
+	"github.com/DeedleFake/sips/ipfsapi"
+	"go.etcd.io/bbolt"
 )
 
 func expand(s string, mapping func(string) (string, error)) (ex string, exerr error) {
@@ -40,12 +44,14 @@ func expand(s string, mapping func(string) (string, error)) (ex string, exerr er
 func run(ctx context.Context) error {
 	addr := flag.String("addr", ":8080", "address to serve HTTP on")
 	api := flag.String("api", "http://127.0.0.1:5001", "IPFS API to contact")
-	rawdbpath := flag.String("db", "$CONFIG/sips/pins.db", "path to database ($CONFIG will be replaced with user config dir path)")
+	rawdbpath := flag.String("db", "$CONFIG/sips/database.db", "path to database ($CONFIG will be replaced with user config dir path)")
 	flag.Parse()
 
+	var configDirUsed bool
 	dbpath, err := expand(*rawdbpath, func(env string) (string, error) {
 		switch env {
 		case "CONFIG":
+			configDirUsed = true
 			cfgdir, err := os.UserConfigDir()
 			if err != nil {
 				return "", fmt.Errorf("get user config directory: %w", err)
@@ -59,13 +65,33 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	// TODO: Implement a handler.
-	_ = api
-	_ = dbpath
+	ipfs := ipfsapi.NewClient(
+		ipfsapi.WithBaseURL(*api),
+		ipfsapi.WithHTTPClient(&http.Client{
+			Timeout: 10 * time.Second, // TODO: Let the user configure this.
+		}),
+	)
+
+	if configDirUsed {
+		err := os.MkdirAll(filepath.Dir(dbpath), 0770)
+		if err != nil {
+			return fmt.Errorf("create config directory: %w", err)
+		}
+	}
+	db, err := bbolt.Open(dbpath, 0660, nil)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	handler := sips.Handler(&PinHandler{
+		IPFS: ipfs,
+		DB:   db,
+	})
 
 	server := http.Server{
-		Addr: *addr,
-		//Handler: handler,
+		Addr:    *addr,
+		Handler: handler,
 		BaseContext: func(lis net.Listener) context.Context {
 			return ctx
 		},

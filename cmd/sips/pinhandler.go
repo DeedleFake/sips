@@ -63,3 +63,7 @@ type AuthError struct {
 func (err AuthError) Error() string {
 	return fmt.Sprintf("authenticate token %q: %v", err.Token, err.Err)
 }
+
+func (err AuthError) Unwrap() error {
+	return err.Err
+}

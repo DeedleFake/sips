@@ -83,6 +83,9 @@ type Bucketer interface {
 func FindPath(b Bucketer, path ...[]byte) (r *bbolt.Bucket) {
 	r = b.Bucket(path[0])
 	for _, name := range path[1:] {
+		if r == nil {
+			return nil
+		}
 		r = r.Bucket(name)
 	}
 	return r

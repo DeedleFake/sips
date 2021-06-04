@@ -1,6 +1,25 @@
+// Package dbutil provides utilities for dealing with the database.
+//
+// The database is stored in a nested key/value pair scheme. The general structure used by this package is as follows:
+//
+//    - USERS
+//      - <user ID>
+//        - NAME -> <username>
+//        - PINS
+//          - <pin name> -> <CID>
+//    - TOKENS
+//      - <token ID>
+//        - USER -> <user ID>
+//        - CREATED -> <creation time>
+//    - PINS
+//      - <pin ID>
+//        - NAME -> <name for the pin>
+//        - CID -> <CID of pinned data>
 package dbutil
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -14,10 +33,17 @@ var (
 )
 
 const (
-	userBucket = "USERS"
+	userBucket  = "USERS"
+	userNameKey = "NAME"
+	userPinsKey = "PINS"
 
-	tokenBucket  = "TOKENS"
-	tokenUserKey = "USER"
+	tokenBucket     = "TOKENS"
+	tokenUserKey    = "USER"
+	tokenCreatedKey = "CREATED"
+
+	pinBucket  = "PINS"
+	pinNameKey = "NAME"
+	pinCIDKey  = "CID"
 )
 
 func Open(dbpath string, createDir bool) (*bbolt.DB, error) {
@@ -53,40 +79,72 @@ func Open(dbpath string, createDir bool) (*bbolt.DB, error) {
 	return db, nil
 }
 
-func GetUserForToken(db *bbolt.DB, tok string) (user string, err error) {
-	btok := []byte(tok)
+type MatchFunc func(*bbolt.Bucket) (bool, error)
+
+type extractFunc func(key []byte, data *bbolt.Bucket) error
+
+func getData(parent *bbolt.Bucket, match MatchFunc, extract extractFunc) error {
+	cursor := parent.Cursor()
+	for {
+		k, v := cursor.Next()
+		if v != nil {
+			continue
+		}
+
+		ok, err := match(parent.Bucket(k))
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+
+		return extract(k, parent.Bucket(k))
+	}
+}
+
+type User struct {
+	ID   uint64
+	Name string
+	Pins []uint64
+}
+
+func GetUser(db *bbolt.DB, match MatchFunc) (user User, err error) {
 	err = db.View(func(tx *bbolt.Tx) error {
-		tokenBucket := FindPath(
-			tx,
-			[]byte(tokenBucket),
-			btok,
-		)
-		if tokenBucket == nil {
-			return ErrInvalidToken
-		}
-
-		u := tokenBucket.Get([]byte(tokenUserKey))
-		if u == nil {
-			return ErrInvalidToken
-		}
-
-		user = string(u)
-		return nil
+		return getData(tx.Bucket([]byte(userBucket)), match, func(k []byte, b *bbolt.Bucket) error {
+			panic("Not implemented.")
+		})
 	})
 	return user, err
 }
 
-type Bucketer interface {
-	Bucket([]byte) *bbolt.Bucket
+type Token struct {
+	ID     string
+	UserID uint64
 }
 
-func FindPath(b Bucketer, path ...[]byte) (r *bbolt.Bucket) {
-	r = b.Bucket(path[0])
-	for _, name := range path[1:] {
-		if r == nil {
+func GetToken(db *bbolt.DB, match MatchFunc) (token Token, err error) {
+	err = db.View(func(tx *bbolt.Tx) error {
+		return getData(tx.Bucket([]byte(tokenBucket)), match, func(k []byte, b *bbolt.Bucket) error {
+			rawUserID := b.Get([]byte(tokenUserKey))
+			userID, n := binary.Uvarint(rawUserID)
+			if n <= 0 {
+				return fmt.Errorf("convert user id %q to uint64", rawUserID)
+			}
+
+			token = Token{
+				ID:     string(k),
+				UserID: userID,
+			}
 			return nil
-		}
-		r = r.Bucket(name)
+		})
+	})
+	return token, err
+}
+
+func TokenByID(id string) MatchFunc {
+	bid := []byte(id)
+	return func(b *bbolt.Bucket) (bool, error) {
+		return bytes.Equal(b.Get([]byte(tokenUserKey)), bid), nil
 	}
-	return r
 }

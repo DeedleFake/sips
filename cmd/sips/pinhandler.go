@@ -22,23 +22,28 @@ type PinHandler struct {
 }
 
 func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinStatus, error) {
+	//tokID, ok := sips.Token(ctx)
+	//if !ok {
+	//	return nil, ErrNoToken
+	//}
+
 	panic("Not implemented.")
 }
 
 func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, error) {
-	tok, ok := sips.Token(ctx)
+	tokID, ok := sips.Token(ctx)
 	if !ok {
 		return sips.PinStatus{}, ErrNoToken
 	}
-	user, err := dbutil.GetUserForToken(h.DB, tok)
+	tok, err := dbutil.GetToken(h.DB, dbutil.TokenByID(tokID))
 	if err != nil {
 		return sips.PinStatus{}, AuthError{
-			Token: tok,
+			Token: tokID,
 			Err:   err,
 		}
 	}
 
-	log.Infof("authenticated user %q with token %q", user, tok)
+	log.Infof("authenticated user %v with token %q", tok.UserID, tok.ID)
 
 	panic("Not implemented.")
 }

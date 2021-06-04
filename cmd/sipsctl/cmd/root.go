@@ -28,6 +28,7 @@ func init() {
 	)
 
 	rootCmd.AddCommand(tokenCmd)
+	rootCmd.AddCommand(userCmd)
 }
 
 func ExecuteContext(ctx context.Context) error {

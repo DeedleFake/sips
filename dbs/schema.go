@@ -19,7 +19,7 @@ type Token struct {
 }
 
 type Pin struct {
-	ID   uint64
+	ID   uint64 `storm:"increment"`
 	Name string
 	CID  string
 }

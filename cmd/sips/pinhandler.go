@@ -40,19 +40,15 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 	var tok dbs.Token
 	err := h.DB.One("ID", tokID, &tok)
 	if err != nil {
-		return sips.PinStatus{}, AuthError{
-			Token: tokID,
-			Err:   err,
-		}
+		log.Errorf("find token %q: %v", tokID, err)
+		return sips.PinStatus{}, err
 	}
 
 	var user dbs.User
 	err = h.DB.One("User", tok.User, &user)
 	if err != nil {
-		return sips.PinStatus{}, AuthError{
-			Token: tokID,
-			Err:   err,
-		}
+		log.Errorf("find user %q: %v", tok.User, err)
+		return sips.PinStatus{}, err
 	}
 
 	log.Infof("authenticated user %q with token %q", user.Name, tok.ID)

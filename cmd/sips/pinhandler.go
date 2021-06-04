@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/dbs"
@@ -66,17 +65,4 @@ func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pi
 
 func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 	panic("Not implemented.")
-}
-
-type AuthError struct {
-	Token string
-	Err   error
-}
-
-func (err AuthError) Error() string {
-	return fmt.Sprintf("authenticate token %q: %v", err.Token, err.Err)
-}
-
-func (err AuthError) Unwrap() error {
-	return err.Err
 }

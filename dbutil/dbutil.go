@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	ErrInvalidToken = errors.New("invalid token")
+	ErrNotFound = errors.New("not found")
 )
 
 const (
@@ -79,7 +79,13 @@ func Open(dbpath string, createDir bool) (*bbolt.DB, error) {
 	return db, nil
 }
 
-type MatchFunc func(*bbolt.Bucket) (bool, error)
+type MatchFunc func(key []byte, data *bbolt.Bucket) (bool, error)
+
+func ByKey(key []byte) MatchFunc {
+	return func(k []byte, b *bbolt.Bucket) (bool, error) {
+		return bytes.Equal(k, key), nil
+	}
+}
 
 type extractFunc func(key []byte, data *bbolt.Bucket) error
 
@@ -90,8 +96,11 @@ func getData(parent *bbolt.Bucket, match MatchFunc, extract extractFunc) error {
 		if v != nil {
 			continue
 		}
+		if k == nil {
+			return ErrNotFound
+		}
 
-		ok, err := match(parent.Bucket(k))
+		ok, err := match(k, parent.Bucket(k))
 		if err != nil {
 			return err
 		}
@@ -118,9 +127,27 @@ func GetUser(db *bbolt.DB, match MatchFunc) (user User, err error) {
 	return user, err
 }
 
+func UserByID(id uint64) MatchFunc {
+	var buf [8]byte
+	n := binary.PutUvarint(buf[:], id)
+	return ByKey(buf[:n])
+}
+
 type Token struct {
 	ID     string
 	UserID uint64
+}
+
+func CreateToken(db *bbolt.DB, userID uint64) (token Token, err error) {
+	_, err = GetUser(db, UserByID(userID))
+	if err != nil {
+		return token, fmt.Errorf("get user %v: %w", userID, err)
+	}
+
+	err = db.Update(func(tx *bbolt.Tx) error {
+		panic("Not implemented.")
+	})
+	return token, err
 }
 
 func GetToken(db *bbolt.DB, match MatchFunc) (token Token, err error) {
@@ -144,7 +171,5 @@ func GetToken(db *bbolt.DB, match MatchFunc) (token Token, err error) {
 
 func TokenByID(id string) MatchFunc {
 	bid := []byte(id)
-	return func(b *bbolt.Bucket) (bool, error) {
-		return bytes.Equal(b.Get([]byte(tokenUserKey)), bid), nil
-	}
+	return ByKey(bid)
 }

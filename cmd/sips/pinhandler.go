@@ -6,19 +6,20 @@ import (
 	"fmt"
 
 	"github.com/DeedleFake/sips"
-	"github.com/DeedleFake/sips/dbutil"
+	"github.com/DeedleFake/sips/dbs"
 	"github.com/DeedleFake/sips/internal/log"
 	"github.com/DeedleFake/sips/ipfsapi"
-	"go.etcd.io/bbolt"
+	"github.com/asdine/storm"
 )
 
 var (
-	ErrNoToken = errors.New("no token")
+	ErrNoToken    = errors.New("no token")
+	ErrNoSuchUser = errors.New("user doesn't exist")
 )
 
 type PinHandler struct {
 	IPFS *ipfsapi.Client
-	DB   *bbolt.DB
+	DB   *storm.DB
 }
 
 func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinStatus, error) {
@@ -35,7 +36,9 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 	if !ok {
 		return sips.PinStatus{}, ErrNoToken
 	}
-	tok, err := dbutil.GetToken(h.DB, dbutil.TokenByID(tokID))
+
+	var tok dbs.Token
+	err := h.DB.One("ID", tokID, &tok)
 	if err != nil {
 		return sips.PinStatus{}, AuthError{
 			Token: tokID,
@@ -43,7 +46,16 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 		}
 	}
 
-	log.Infof("authenticated user %v with token %q", tok.UserID, tok.ID)
+	var user dbs.User
+	err = h.DB.One("User", tok.User, &user)
+	if err != nil {
+		return sips.PinStatus{}, AuthError{
+			Token: tokID,
+			Err:   err,
+		}
+	}
+
+	log.Infof("authenticated user %q with token %q", user.Name, tok.ID)
 
 	panic("Not implemented.")
 }

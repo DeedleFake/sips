@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/DeedleFake/sips"
+	"github.com/DeedleFake/sips/dbs"
 	"github.com/DeedleFake/sips/internal/log"
 	"github.com/DeedleFake/sips/ipfsapi"
-	"go.etcd.io/bbolt"
 )
 
 func expand(s string, mapping func(string) (string, error)) (ex string, exerr error) {
@@ -78,7 +78,7 @@ func run(ctx context.Context) error {
 			return fmt.Errorf("create config directory: %w", err)
 		}
 	}
-	db, err := bbolt.Open(dbpath, 0660, nil)
+	db, err := dbs.Open(dbpath)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}

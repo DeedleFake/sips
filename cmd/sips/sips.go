@@ -18,49 +18,13 @@ import (
 	"github.com/DeedleFake/sips/ipfsapi"
 )
 
-func expand(s string, mapping func(string) (string, error)) (ex string, exerr error) {
-	defer func() {
-		r := recover()
-		switch r := r.(type) {
-		case error:
-			exerr = r
-		case nil:
-			return
-		default:
-			panic(r)
-		}
-	}()
-
-	ex = os.Expand(s, func(env string) string {
-		str, err := mapping(env)
-		if err != nil {
-			panic(err)
-		}
-		return str
-	})
-	return ex, exerr
-}
-
 func run(ctx context.Context) error {
 	addr := flag.String("addr", ":8080", "address to serve HTTP on")
 	api := flag.String("api", "http://127.0.0.1:5001", "IPFS API to contact")
 	rawdbpath := flag.String("db", "$CONFIG/sips/database.db", "path to database ($CONFIG will be replaced with user config dir path)")
 	flag.Parse()
 
-	var configDirUsed bool
-	dbpath, err := expand(*rawdbpath, func(env string) (string, error) {
-		switch env {
-		case "CONFIG":
-			configDirUsed = true
-			cfgdir, err := os.UserConfigDir()
-			if err != nil {
-				return "", fmt.Errorf("get user config directory: %w", err)
-			}
-			return cfgdir, nil
-		default:
-			return "", fmt.Errorf("unexpected variable: %q", env)
-		}
-	})
+	dbpath, configDirUsed, err := cli.Expand(*rawdbpath)
 	if err != nil {
 		return err
 	}

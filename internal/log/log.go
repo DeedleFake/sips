@@ -22,7 +22,7 @@ var (
 func init() {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		panic(fmt.Errorf("failed to get package directory information: %w", err))
+		panic("failed to get package directory information")
 	}
 	packageDir = filepath.Join(filepath.Dir(file), "..", "..")
 }

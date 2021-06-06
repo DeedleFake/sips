@@ -2,16 +2,28 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/DeedleFake/sips/internal/cli"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "sipsctl",
-	Short: "sipsctl is an admin utility for SIPS",
-	Long:  `An admin utility for SIPS, the Simple IPFS Pinning Service.`,
+	Use:           "sipsctl",
+	Short:         "sipsctl is an admin utility for SIPS",
+	Long:          `An admin utility for SIPS, the Simple IPFS Pinning Service.`,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
+	},
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		dbpath, _, err := cli.ExpandConfig(globalFlags.DBPath)
+		if err != nil {
+			return fmt.Errorf("expand database path: %w", err)
+		}
+		globalFlags.DBPath = dbpath
+		return nil
 	},
 }
 

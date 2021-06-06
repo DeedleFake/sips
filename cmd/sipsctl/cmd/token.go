@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/DeedleFake/sips/dbs"
-	"github.com/DeedleFake/sips/internal/cli"
 	"github.com/spf13/cobra"
 )
 
@@ -27,12 +26,7 @@ func init() {
 		Use:   "add",
 		Short: "generate a new auth token",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dbpath, _, err := cli.ExpandConfig(globalFlags.DBPath)
-			if err != nil {
-				return err
-			}
-
-			db, err := dbs.Open(dbpath)
+			db, err := dbs.Open(globalFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}

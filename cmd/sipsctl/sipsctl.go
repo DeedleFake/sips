@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 
 	"github.com/DeedleFake/sips/cmd/sipsctl/cmd"
+	"github.com/DeedleFake/sips/internal/log"
 )
 
 func main() {

@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var tokenCmd = &cobra.Command{
-	Use:   "token",
+var tokensCmd = &cobra.Command{
+	Use:   "tokens <subcommand>",
 	Short: "administrate auth tokens",
 	Long:  `Administrate authenitication tokens in the database.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -105,9 +105,9 @@ func init() {
 		},
 	}
 
-	tokenCmd.AddCommand(
+	tokensCmd.AddCommand(
 		addCmd,
 		listCmd,
 	)
-	tokenCmd.PersistentFlags().StringVar(&tokenFlags.User, "user", "", "user that token is associated with")
+	tokensCmd.PersistentFlags().StringVar(&tokenFlags.User, "user", "", "user that token is associated with")
 }

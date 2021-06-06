@@ -39,8 +39,11 @@ func init() {
 		"path to database ($CONFIG will be replaced with user config dir path)",
 	)
 
-	rootCmd.AddCommand(tokenCmd)
-	rootCmd.AddCommand(userCmd)
+	rootCmd.AddCommand(
+		tokensCmd,
+		usersCmd,
+		pinsCmd,
+	)
 }
 
 func ExecuteContext(ctx context.Context) error {

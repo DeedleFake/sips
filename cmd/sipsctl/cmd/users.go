@@ -10,8 +10,8 @@ import (
 
 var validUserRE = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
-var userCmd = &cobra.Command{
-	Use:   "user <subcommand>",
+var usersCmd = &cobra.Command{
+	Use:   "users <subcommand>",
 	Short: "administrate users",
 	Long: `Adds, removes, and does other administrative tasks for users in the
 database.`,
@@ -51,6 +51,9 @@ func init() {
 		},
 	}
 
+	// TODO: Add a command for removing users, possibly along with their
+	// pins.
+
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "list all existing users",
@@ -76,7 +79,7 @@ func init() {
 		},
 	}
 
-	userCmd.AddCommand(
+	usersCmd.AddCommand(
 		addCmd,
 		listCmd,
 	)

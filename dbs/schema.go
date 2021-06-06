@@ -8,18 +8,18 @@ import (
 
 type User struct {
 	ID   uint64 `storm:"increment"`
-	Name string `storm:"unique"`
+	Name string `storm:"index,unique"`
 	Pins storm.Node
 }
 
 type Token struct {
 	ID      string
-	User    uint64
-	Created time.Time
+	User    uint64    `storm:"index"`
+	Created time.Time `storm:"index"`
 }
 
 type Pin struct {
 	ID   uint64 `storm:"increment"`
-	Name string
-	CID  string
+	Name string `storm:"index"`
+	CID  string `storm:"index"`
 }

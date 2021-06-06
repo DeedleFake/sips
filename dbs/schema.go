@@ -2,14 +2,11 @@ package dbs
 
 import (
 	"time"
-
-	"github.com/asdine/storm"
 )
 
 type User struct {
 	ID   uint64 `storm:"increment"`
 	Name string `storm:"index,unique"`
-	Pins storm.Node
 }
 
 type Token struct {
@@ -19,7 +16,8 @@ type Token struct {
 }
 
 type Pin struct {
-	ID   uint64 `storm:"increment"`
-	Name string `storm:"index"`
-	CID  string `storm:"index"`
+	ID     uint64 `storm:"increment"`
+	UserID uint64 `storm:"index"`
+	Name   string `storm:"index"`
+	CID    string `storm:"index"`
 }

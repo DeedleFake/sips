@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/dbs"
@@ -36,23 +37,43 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 		return sips.PinStatus{}, ErrNoToken
 	}
 
+	tx, err := h.DB.Begin(true)
+	if err != nil {
+		log.Errorf("begin transaction: %w", err)
+		return sips.PinStatus{}, err
+	}
+	defer tx.Rollback()
+
 	var tok dbs.Token
-	err := h.DB.One("ID", tokID, &tok)
+	err = tx.One("ID", tokID, &tok)
 	if err != nil {
 		log.Errorf("find token %q: %v", tokID, err)
 		return sips.PinStatus{}, err
 	}
 
 	var user dbs.User
-	err = h.DB.One("User", tok.User, &user)
+	err = tx.One("ID", tok.User, &user)
 	if err != nil {
 		log.Errorf("find user %q: %v", tok.User, err)
 		return sips.PinStatus{}, err
 	}
 
-	log.Infof("authenticated user %q with token %q", user.Name, tok.ID)
+	dbpin := dbs.Pin{
+		UserID: user.ID,
+		Name:   pin.Name,
+		CID:    pin.CID,
+	}
+	err = tx.Save(&dbpin)
+	if err != nil {
+		log.Errorf("save pin %q: %w", pin.CID, err)
+		return sips.PinStatus{}, err
+	}
 
-	panic("Not implemented.")
+	return sips.PinStatus{
+		Status:  sips.Pinning,
+		Created: time.Now(),
+		Pin:     pin,
+	}, tx.Commit()
 }
 
 func (h PinHandler) GetPin(ctx context.Context, requestID string) (sips.PinStatus, error) {

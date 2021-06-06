@@ -27,7 +27,7 @@ func init() {
 		Long:  `Adds a new user.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(globalFlags.DBPath)
+			db, err := dbs.Open(rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -56,7 +56,7 @@ func init() {
 		Short: "list all existing users",
 		Long:  `Lists all registered users in the database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(globalFlags.DBPath)
+			db, err := dbs.Open(rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}

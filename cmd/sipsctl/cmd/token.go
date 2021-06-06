@@ -20,22 +20,25 @@ var tokenCmd = &cobra.Command{
 	},
 }
 
+var tokenFlags struct {
+	User string
+}
+
 func init() {
-	var addUserFlag string
 	addCmd := &cobra.Command{
 		Use:   "add",
 		Short: "generate a new auth token",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(globalFlags.DBPath)
+			db, err := dbs.Open(rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
 			defer db.Close()
 
 			var user dbs.User
-			err = db.One("Name", addUserFlag, &user)
+			err = db.One("Name", tokenFlags.User, &user)
 			if err != nil {
-				return fmt.Errorf("get user %q: %v", addUserFlag, err)
+				return fmt.Errorf("get user %q: %v", tokenFlags.User, err)
 			}
 
 			var buf [256]byte
@@ -60,10 +63,51 @@ func init() {
 			return nil
 		},
 	}
-	addCmd.Flags().StringVar(&addUserFlag, "user", "", "user to generate a token for")
-	addCmd.MarkFlagRequired("user")
+	addCmd.MarkPersistentFlagRequired("user")
+
+	listCmd := &cobra.Command{
+		Use:   "list",
+		Short: "list all tokens",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, err := dbs.Open(rootFlags.DBPath)
+			if err != nil {
+				return fmt.Errorf("open database: %w", err)
+			}
+			defer db.Close()
+
+			// TODO: Only show tokens for a given user if the user flag was
+			// provided.
+
+			var tokens []dbs.Token
+			err = db.All(&tokens)
+			if err != nil {
+				return fmt.Errorf("get tokens: %w", err)
+			}
+
+			userCache := make(map[uint64]string)
+			for _, token := range tokens {
+				user, ok := userCache[token.User]
+				if !ok {
+					var u dbs.User
+					err := db.One("ID", token.User, &u)
+					if err != nil {
+						return fmt.Errorf("get user %v: %w", token.User, err)
+					}
+
+					userCache[token.User] = u.Name
+					user = u.Name
+				}
+
+				fmt.Printf("%v %v\n", token.ID, user)
+			}
+
+			return nil
+		},
+	}
 
 	tokenCmd.AddCommand(
 		addCmd,
+		listCmd,
 	)
+	tokenCmd.PersistentFlags().StringVar(&tokenFlags.User, "user", "", "user that token is associated with")
 }

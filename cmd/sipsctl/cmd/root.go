@@ -18,22 +18,22 @@ var rootCmd = &cobra.Command{
 		return cmd.Help()
 	},
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		dbpath, _, err := cli.ExpandConfig(globalFlags.DBPath)
+		dbpath, _, err := cli.ExpandConfig(rootFlags.DBPath)
 		if err != nil {
 			return fmt.Errorf("expand database path: %w", err)
 		}
-		globalFlags.DBPath = dbpath
+		rootFlags.DBPath = dbpath
 		return nil
 	},
 }
 
-var globalFlags struct {
+var rootFlags struct {
 	DBPath string
 }
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(
-		&globalFlags.DBPath,
+		&rootFlags.DBPath,
 		"db",
 		"$CONFIG/sips/database.db",
 		"path to database ($CONFIG will be replaced with user config dir path)",

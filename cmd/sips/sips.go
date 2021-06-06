@@ -14,6 +14,7 @@ import (
 
 	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/dbs"
+	"github.com/DeedleFake/sips/internal/cli"
 	"github.com/DeedleFake/sips/internal/log"
 	"github.com/DeedleFake/sips/ipfsapi"
 )
@@ -24,7 +25,7 @@ func run(ctx context.Context) error {
 	rawdbpath := flag.String("db", "$CONFIG/sips/database.db", "path to database ($CONFIG will be replaced with user config dir path)")
 	flag.Parse()
 
-	dbpath, configDirUsed, err := cli.Expand(*rawdbpath)
+	dbpath, configDirUsed, err := cli.ExpandConfig(*rawdbpath)
 	if err != nil {
 		return err
 	}

@@ -39,7 +39,7 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 
 	tx, err := h.DB.Begin(true)
 	if err != nil {
-		log.Errorf("begin transaction: %w", err)
+		log.Errorf("begin transaction: %v", err)
 		return sips.PinStatus{}, err
 	}
 	defer tx.Rollback()
@@ -59,13 +59,13 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 	}
 
 	dbpin := dbs.Pin{
-		UserID: user.ID,
-		Name:   pin.Name,
-		CID:    pin.CID,
+		User: user.ID,
+		Name: pin.Name,
+		CID:  pin.CID,
 	}
 	err = tx.Save(&dbpin)
 	if err != nil {
-		log.Errorf("save pin %q: %w", pin.CID, err)
+		log.Errorf("save pin %q: %v", pin.CID, err)
 		return sips.PinStatus{}, err
 	}
 

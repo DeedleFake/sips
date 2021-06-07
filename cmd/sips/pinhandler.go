@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/DeedleFake/sips"
@@ -18,6 +19,7 @@ var (
 )
 
 type PinHandler struct {
+	Jobs *JobQueue
 	IPFS *ipfsapi.Client
 	DB   *storm.DB
 }
@@ -59,9 +61,10 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 	}
 
 	dbpin := dbs.Pin{
-		User: user.ID,
-		Name: pin.Name,
-		CID:  pin.CID,
+		Created: time.Now(),
+		User:    user.ID,
+		Name:    pin.Name,
+		CID:     pin.CID,
 	}
 	err = tx.Save(&dbpin)
 	if err != nil {
@@ -69,10 +72,23 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 		return sips.PinStatus{}, err
 	}
 
+	job := dbs.Job{
+		Created: dbpin.Created,
+		Pin:     dbpin.ID,
+		Mode:    dbs.ModeAdd,
+	}
+	err = tx.Save(&job)
+	if err != nil {
+		log.Errorf("save job: %q: %v", pin.CID, err)
+		return sips.PinStatus{}, err
+	}
+
 	return sips.PinStatus{
-		Status:  sips.Pinning,
-		Created: time.Now(),
-		Pin:     pin,
+		RequestID: strconv.FormatUint(job.ID, 10),
+		Status:    sips.Queued,
+		Created:   time.Now(),
+		// TODO: Add delegates.
+		Pin: pin,
 	}, tx.Commit()
 }
 

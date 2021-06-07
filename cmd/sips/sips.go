@@ -49,14 +49,22 @@ func run(ctx context.Context) error {
 	}
 	defer db.Close()
 
-	handler := sips.Handler(&PinHandler{
+	jq := JobQueue{
 		IPFS: ipfs,
 		DB:   db,
-	})
+	}
+	jq.Start(ctx)
+	defer jq.Stop()
+
+	ph := PinHandler{
+		Jobs: &jq,
+		IPFS: ipfs,
+		DB:   db,
+	}
 
 	server := http.Server{
 		Addr:    *addr,
-		Handler: handler,
+		Handler: sips.Handler(&ph),
 		BaseContext: func(lis net.Listener) context.Context {
 			return ctx
 		},

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/DeedleFake/sips/dbs"
 	"github.com/spf13/cobra"
@@ -38,7 +39,8 @@ func init() {
 			}
 
 			user := dbs.User{
-				Name: args[0],
+				Created: time.Now(),
+				Name:    args[0],
 			}
 			err = db.Save(&user)
 			if err != nil {

@@ -50,8 +50,8 @@ func init() {
 
 			tok := dbs.Token{
 				ID:      base64.URLEncoding.EncodeToString(sum[:]),
-				User:    user.ID,
 				Created: time.Now(),
+				User:    user.ID,
 			}
 			err = db.Save(&tok)
 			if err != nil {

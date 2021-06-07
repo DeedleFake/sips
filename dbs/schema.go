@@ -16,8 +16,21 @@ type Token struct {
 }
 
 type Pin struct {
-	ID     uint64 `storm:"increment"`
-	UserID uint64 `storm:"index"`
-	Name   string `storm:"index"`
-	CID    string `storm:"index"`
+	ID   uint64 `storm:"increment"`
+	User uint64 `storm:"index"`
+	Name string `storm:"index"`
+	CID  string `storm:"index"`
 }
+
+type Job struct {
+	ID   uint64 `storm:"increment"`
+	Pin  uint64
+	Mode JobMode
+}
+
+type JobMode int
+
+const (
+	ModeAdd JobMode = iota
+	ModeRm
+)

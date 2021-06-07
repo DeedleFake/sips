@@ -2,35 +2,42 @@ package dbs
 
 import (
 	"time"
+
+	"github.com/DeedleFake/sips"
 )
 
 type User struct {
-	ID   uint64 `storm:"increment"`
-	Name string `storm:"index,unique"`
+	ID      uint64 `storm:"increment"`
+	Created time.Time
+	Name    string `storm:"index,unique"`
 }
 
 type Token struct {
 	ID      string
-	User    uint64    `storm:"index"`
-	Created time.Time `storm:"index"`
+	Created time.Time
+	User    uint64 `storm:"index"`
 }
 
 type Pin struct {
-	ID   uint64 `storm:"increment"`
-	User uint64 `storm:"index"`
-	Name string `storm:"index"`
-	CID  string `storm:"index"`
+	ID      uint64 `storm:"increment"`
+	Created time.Time
+	User    uint64 `storm:"index"`
+	Name    string `storm:"index"`
+	CID     string `storm:"index"`
 }
 
 type Job struct {
-	ID   uint64 `storm:"increment"`
-	Pin  uint64
-	Mode JobMode
+	ID      uint64 `storm:"increment"`
+	Created time.Time
+	Pin     uint64 `storm:"index,unique"`
+	Mode    JobMode
+	Data    sips.Pin
 }
 
 type JobMode int
 
 const (
 	ModeAdd JobMode = iota
-	ModeRm
+	ModeUpdate
+	ModeDelete
 )

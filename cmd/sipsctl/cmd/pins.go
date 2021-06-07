@@ -41,27 +41,7 @@ func init() {
 		},
 	}
 
-	var syncFlags struct {
-		Delete bool
-	}
-	syncCmd := &cobra.Command{
-		Use:   "sync",
-		Short: "synchronize pins to IPFS",
-		Long:  `Synchronizes pin status to actual IPFS pins.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
-			if err != nil {
-				return fmt.Errorf("open database: %w", err)
-			}
-			defer db.Close()
-
-			panic("Not implemented.")
-		},
-	}
-	syncCmd.Flags().BoolFlag(&syncFlags.Delete, "delete", false, "delete missing pins from IPFS")
-
 	pinsCmd.AddCommand(
 		listCmd,
-		syncCmd,
 	)
 }

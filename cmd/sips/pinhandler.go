@@ -116,11 +116,117 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 }
 
 func (h PinHandler) GetPin(ctx context.Context, requestID string) (sips.PinStatus, error) {
-	panic("Not implemented.")
+	pinID, err := strconv.ParseUint(requestID, 16, 64)
+	if err != nil {
+		log.Errorf("parse request ID %q: %v", requestID, err)
+		return sips.PinStatus{}, err
+	}
+
+	tx, err := h.DB.Begin(false)
+	if err != nil {
+		log.Errorf("begin transaction: %v", err)
+		return sips.PinStatus{}, err
+	}
+	defer tx.Rollback()
+
+	user, err := auth(ctx, tx)
+	if err != nil {
+		log.Errorf("authenticate: %v", err)
+		return sips.PinStatus{}, err
+	}
+
+	var pin dbs.Pin
+	err = tx.One("ID", pinID, &pin)
+	if err != nil {
+		log.Errorf("find pin %v: %v", requestID, err)
+		return sips.PinStatus{}, err
+	}
+
+	if pin.User != user.ID {
+		log.Errorf("user %v is not authorized to see pin %v", user.Name, requestID)
+		return sips.PinStatus{}, fs.ErrPermission
+	}
+
+	return sips.PinStatus{
+		RequestID: requestID,
+		Status:    sips.Pinned,
+		Created:   pin.Created,
+		Pin: sips.Pin{
+			CID:  pin.CID,
+			Name: pin.Name,
+		},
+	}, nil
 }
 
 func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pin) (sips.PinStatus, error) {
-	panic("Not implemented.")
+	pinID, err := strconv.ParseUint(requestID, 16, 64)
+	if err != nil {
+		log.Errorf("parse request ID: %q: %v", requestID, err)
+		return sips.PinStatus{}, err
+	}
+
+	tx, err := h.DB.Begin(true)
+	if err != nil {
+		log.Errorf("begin transaction: %v", err)
+		return sips.PinStatus{}, err
+	}
+	defer tx.Rollback()
+
+	user, err := auth(ctx, tx)
+	if err != nil {
+		log.Errorf("authenticate: %v", err)
+		return sips.PinStatus{}, err
+	}
+
+	var dbpin dbs.Pin
+	err = tx.One("ID", pinID, &dbpin)
+	if err != nil {
+		log.Errorf("find pin %v: %v", requestID, err)
+		return sips.PinStatus{}, err
+	}
+	oldCID := dbpin.CID
+
+	if dbpin.User != user.ID {
+		log.Errorf("user %v not allowed to update pin %v", user.Name, requestID)
+		return sips.PinStatus{}, fs.ErrPermission
+	}
+
+	dbpin.Name = pin.Name
+	dbpin.CID = pin.CID
+	err = tx.Update(&dbpin)
+	if err != nil {
+		log.Errorf("update pin %v: %v", requestID, err)
+		return sips.PinStatus{}, err
+	}
+
+	if len(pin.Origins) != 0 {
+		for _, origin := range pin.Origins {
+			go h.IPFS.SwarmConnect(origin)
+		}
+	}
+
+	_, err = h.IPFS.PinUpdate(oldCID, pin.CID, false)
+	if err != nil {
+		log.Errorf("add pin %v: %v", pin.CID, err)
+		return sips.PinStatus{}, err
+	}
+
+	id, err := h.IPFS.ID()
+	if err != nil {
+		log.Errorf("get IPFS id: %v", err)
+		// Purposefully don't return here.
+	}
+
+	return sips.PinStatus{
+		RequestID: requestID,
+		Status:    sips.Pinning,
+		Created:   dbpin.Created,
+		Delegates: id.Addresses,
+		Pin: sips.Pin{
+			CID:  pin.CID,
+			Name: pin.Name,
+		},
+	}, tx.Commit()
 }
 
 func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {

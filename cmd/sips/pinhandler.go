@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"strconv"
 	"time"
 
@@ -123,7 +124,50 @@ func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pi
 }
 
 func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
-	panic("Not implemented.")
+	pinID, err := strconv.ParseUint(requestID, 16, 64)
+	if err != nil {
+		log.Errorf("parse request ID %q: %v", requestID, err)
+		return err
+	}
+
+	tx, err := h.DB.Begin(true)
+	if err != nil {
+		log.Errorf("begin transaction: %v", err)
+		return err
+	}
+	defer tx.Rollback()
+
+	user, err := auth(ctx, tx)
+	if err != nil {
+		log.Errorf("authenticate: %v", err)
+		return err
+	}
+
+	var pin dbs.Pin
+	err = tx.One("ID", pinID, &pin)
+	if err != nil {
+		log.Errorf("find pin %v: %v", requestID, err)
+		return err
+	}
+
+	if pin.User != user.ID {
+		log.Errorf("user %v is not authorized to delete pin %v", user.Name, requestID)
+		return fs.ErrPermission // TODO: That's just not right.
+	}
+
+	err = tx.DeleteStruct(&pin)
+	if err != nil {
+		log.Errorf("delete pin %v: %v", requestID, err)
+		return err
+	}
+
+	_, err = h.IPFS.PinRm(pin.CID)
+	if err != nil {
+		log.Errorf("unpin %v: %v", pin.CID, err)
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func auth(ctx context.Context, db storm.Node) (user dbs.User, err error) {

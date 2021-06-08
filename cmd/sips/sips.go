@@ -15,8 +15,8 @@ import (
 	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/dbs"
 	"github.com/DeedleFake/sips/internal/cli"
+	"github.com/DeedleFake/sips/internal/ipfsapi"
 	"github.com/DeedleFake/sips/internal/log"
-	"github.com/DeedleFake/sips/ipfsapi"
 )
 
 func run(ctx context.Context) error {

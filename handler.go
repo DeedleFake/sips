@@ -101,7 +101,13 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 	query := defaultPinQuery()
 
 	query.CID = strings.SplitN(q.Get("cid"), ",", 11)
-	if len(query.CID) > 10 {
+	switch {
+	case len(query.CID) == 1:
+		if query.CID[0] == "" {
+			query.CID = nil
+		}
+
+	case len(query.CID) > 10:
 		respondError(
 			rw,
 			http.StatusBadRequest,

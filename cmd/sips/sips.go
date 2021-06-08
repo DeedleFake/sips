@@ -49,15 +49,7 @@ func run(ctx context.Context) error {
 	}
 	defer db.Close()
 
-	jq := JobQueue{
-		IPFS: ipfs,
-		DB:   db,
-	}
-	jq.Start(ctx)
-	defer jq.Stop()
-
 	ph := PinHandler{
-		Jobs: &jq,
 		IPFS: ipfs,
 		DB:   db,
 	}

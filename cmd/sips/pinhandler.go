@@ -19,7 +19,6 @@ var (
 )
 
 type PinHandler struct {
-	Jobs *JobQueue
 	IPFS *ipfsapi.Client
 	DB   *storm.DB
 }
@@ -72,23 +71,30 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 		return sips.PinStatus{}, err
 	}
 
-	job := dbs.Job{
-		Created: dbpin.Created,
-		Pin:     dbpin.ID,
-		Mode:    dbs.ModeAdd,
+	if len(pin.Origins) != 0 {
+		for _, origin := range pin.Origins {
+			go h.IPFS.SwarmConnect(origin)
+		}
 	}
-	err = tx.Save(&job)
+
+	_, err = h.IPFS.PinAdd(pin.CID)
 	if err != nil {
-		log.Errorf("save job: %q: %v", pin.CID, err)
+		log.Errorf("add pin %v: %v", pin.CID, err)
 		return sips.PinStatus{}, err
 	}
 
+	id, err := h.IPFS.ID()
+	if err != nil {
+		log.Errorf("get IPFS id: %v", err)
+		// Purposefully don't return here.
+	}
+
 	return sips.PinStatus{
-		RequestID: strconv.FormatUint(job.ID, 10),
-		Status:    sips.Queued,
-		Created:   time.Now(),
-		// TODO: Add delegates.
-		Pin: pin,
+		RequestID: strconv.FormatUint(dbpin.ID, 16),
+		Status:    sips.Pinning,
+		Created:   dbpin.Created,
+		Delegates: id.Addresses,
+		Pin:       pin,
 	}, tx.Commit()
 }
 

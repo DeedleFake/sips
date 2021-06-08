@@ -14,22 +14,12 @@ import (
 	"github.com/asdine/storm"
 )
 
-var (
-	ErrNoToken    = errors.New("no token")
-	ErrNoSuchUser = errors.New("user doesn't exist")
-)
-
 type PinHandler struct {
 	IPFS *ipfsapi.Client
 	DB   *storm.DB
 }
 
 func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinStatus, error) {
-	tokID, ok := sips.Token(ctx)
-	if !ok {
-		return nil, ErrNoToken
-	}
-
 	tx, err := h.DB.Begin(false)
 	if err != nil {
 		log.Errorf("begin transaction: %v", err)
@@ -37,9 +27,9 @@ func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinSt
 	}
 	defer tx.Rollback()
 
-	user, err := auth(tx, tokID)
+	user, err := auth(ctx, tx)
 	if err != nil {
-		log.Errorf("authenticate with %v: %v", tokID, err)
+		log.Errorf("authenticate: %v", err)
 		return nil, err
 	}
 
@@ -72,11 +62,6 @@ func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinSt
 }
 
 func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, error) {
-	tokID, ok := sips.Token(ctx)
-	if !ok {
-		return sips.PinStatus{}, ErrNoToken
-	}
-
 	tx, err := h.DB.Begin(true)
 	if err != nil {
 		log.Errorf("begin transaction: %v", err)
@@ -84,9 +69,9 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 	}
 	defer tx.Rollback()
 
-	user, err := auth(tx, tokID)
+	user, err := auth(ctx, tx)
 	if err != nil {
-		log.Errorf("authenticate with %v: %v", tokID, err)
+		log.Errorf("authenticate: %v", err)
 		return sips.PinStatus{}, err
 	}
 
@@ -141,11 +126,13 @@ func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 	panic("Not implemented.")
 }
 
-func auth(db storm.Node, tokID string) (user dbs.User, err error) {
+func auth(ctx context.Context, db storm.Node) (user dbs.User, err error) {
+	tokID, _ := sips.Token(ctx)
+
 	var tok dbs.Token
 	err = db.One("ID", tokID, &tok)
 	if err != nil {
-		return dbs.User{}, fmt.Errorf("find token: %w", err)
+		return dbs.User{}, fmt.Errorf("find token %v: %w", tokID, err)
 	}
 
 	err = db.One("ID", tok.User, &user)

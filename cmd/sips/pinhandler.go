@@ -43,11 +43,14 @@ func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinSt
 		return nil, err
 	}
 
-	// TODO: Filter things correctly using the query.
+	selector := tx.Select(&queryMatcher{Query: query})
+	if query.Limit > 0 {
+		selector = selector.Limit(query.Limit)
+	}
 
 	var dbpins []dbs.Pin
-	err = tx.Find("User", user.ID, &dbpins)
-	if err != nil {
+	err = selector.OrderBy("Created").Find(&dbpins)
+	if (err != nil) && (!errors.Is(err, storm.ErrNotFound)) {
 		log.Errorf("find pins for %v: %v", user.Name, err)
 		return nil, err
 	}
@@ -151,4 +154,49 @@ func auth(db storm.Node, tokID string) (user dbs.User, err error) {
 	}
 
 	return user, nil
+}
+
+type queryMatcher struct {
+	Query sips.PinQuery
+}
+
+func (qm queryMatcher) Match(v interface{}) (bool, error) {
+	pin, ok := v.(dbs.Pin)
+	if !ok {
+		return false, fmt.Errorf("expected pin, not %T", v)
+	}
+
+	if len(qm.Query.CID) != 0 {
+		var found bool
+		for _, cid := range qm.Query.CID {
+			if cid == pin.CID {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false, nil
+		}
+	}
+
+	if qm.Query.Name != "" {
+		if !qm.Query.Match.Match(pin.Name, qm.Query.Name) {
+			return false, nil
+		}
+	}
+
+	// TODO: Handle statuses.
+
+	if !qm.Query.Before.IsZero() {
+		if !pin.Created.After(qm.Query.Before) {
+			return false, nil
+		}
+	}
+	if !qm.Query.After.IsZero() {
+		if !pin.Created.Before(qm.Query.After) {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }

@@ -78,13 +78,13 @@ func (c *Client) PinAdd(cids ...string) (PinAdd, error) {
 	return data, err
 }
 
-type PinLS struct {
+type PinLs struct {
 	CID  string
 	Type PinType
 }
 
-// PinLS gets information about pins from the node.
-func (c *Client) PinLS(pintype PinType, cids ...string) ([]PinLS, error) {
+// PinLs gets information about pins from the node.
+func (c *Client) PinLs(pintype PinType, cids ...string) ([]PinLs, error) {
 	var data struct {
 		Keys map[string]struct {
 			Type PinType
@@ -98,15 +98,25 @@ func (c *Client) PinLS(pintype PinType, cids ...string) ([]PinLS, error) {
 		return nil, err
 	}
 
-	pins := make([]PinLS, 0, len(data.Keys))
+	pins := make([]PinLs, 0, len(data.Keys))
 	for cid, info := range data.Keys {
-		pins = append(pins, PinLS{
+		pins = append(pins, PinLs{
 			CID:  cid,
 			Type: info.Type,
 		})
 	}
 
 	return pins, nil
+}
+
+func (c *Client) PinRm(cids ...string) ([]string, error) {
+	var data struct {
+		Pins []string
+	}
+	err := c.post(&data, "/api/v0/pin/rm", url.Values{
+		"arg": cids,
+	})
+	return data.Pins, err
 }
 
 func (c *Client) SwarmConnect(addr string) error {

@@ -2,8 +2,6 @@ package dbs
 
 import (
 	"time"
-
-	"github.com/DeedleFake/sips"
 )
 
 type User struct {
@@ -25,19 +23,3 @@ type Pin struct {
 	Name    string `storm:"index"`
 	CID     string `storm:"index"`
 }
-
-type Job struct {
-	ID      uint64 `storm:"increment"`
-	Created time.Time
-	Pin     uint64 `storm:"index,unique"`
-	Mode    JobMode
-	Data    sips.Pin
-}
-
-type JobMode int
-
-const (
-	ModeAdd JobMode = iota
-	ModeUpdate
-	ModeDelete
-)

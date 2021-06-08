@@ -21,7 +21,6 @@ func Open(path string) (*storm.DB, error) {
 	init(new(User))
 	init(new(Token))
 	init(new(Pin))
-	init(new(Job))
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("init buckets: %w", err)

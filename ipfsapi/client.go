@@ -49,6 +49,35 @@ func (c *Client) post(data interface{}, endpoint string, args url.Values) error 
 	return nil
 }
 
+type ID struct {
+	Addresses       []string
+	AgentVersion    string
+	ID              string
+	ProtocolVersion string
+	Protocols       []string
+	PublicKey       string
+}
+
+func (c *Client) ID() (ID, error) {
+	var id ID
+	err := c.post(&id, "/api/v0/id", nil)
+	return id, err
+}
+
+type PinAdd struct {
+	Pins     []string
+	Progress int
+}
+
+func (c *Client) PinAdd(cids ...string) (PinAdd, error) {
+	var data PinAdd
+	err := c.post(&data, "/api/v0/pin/add", url.Values{
+		"arg":      cids,
+		"progress": []string{"true"},
+	})
+	return data, err
+}
+
 type PinLS struct {
 	CID  string
 	Type PinType
@@ -78,6 +107,13 @@ func (c *Client) PinLS(pintype PinType, cids ...string) ([]PinLS, error) {
 	}
 
 	return pins, nil
+}
+
+func (c *Client) SwarmConnect(addr string) error {
+	var data struct{}
+	return c.post(&data, "/api/v0/swarm/connect", url.Values{
+		"arg": []string{addr},
+	})
 }
 
 type ClientOption func(*Client)

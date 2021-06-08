@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 // Client is a client for the IPFS HTTP API.
@@ -107,6 +108,17 @@ func (c *Client) PinLs(pintype PinType, cids ...string) ([]PinLs, error) {
 	}
 
 	return pins, nil
+}
+
+func (c *Client) PinUpdate(oldCID, newCID string, unpin bool) ([]string, error) {
+	var data struct {
+		Pins []string
+	}
+	err := c.post(&data, "/api/v0/pin/update", url.Values{
+		"arg":   []string{oldCID, newCID},
+		"unpin": []string{strconv.FormatBool(unpin)},
+	})
+	return data.Pins, err
 }
 
 func (c *Client) PinRm(cids ...string) ([]string, error) {

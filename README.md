@@ -4,6 +4,8 @@ sips
 [![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/DeedleFake/sips)](https://pkg.go.dev/github.com/DeedleFake/sips)
 [![Go Report Card](https://goreportcard.com/badge/github.com/DeedleFake/sips)](https://goreportcard.com/report/github.com/DeedleFake/sips)
 
+*Disclaimer: sips is still in early development and is not guaranteed to do much of anything. Although it should function for basic usage, expect bugs, and definitely don't use it for anything that has money associated with it.*
+
 sips is a Simple IPFS Pinning Service. It does the bare minimum necessary to present a functional [pinning service][pinning-service-api].
 
 Setup

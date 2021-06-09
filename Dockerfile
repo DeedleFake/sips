@@ -18,4 +18,4 @@ ENV PATH /
 EXPOSE 8080
 VOLUME /data/sips
 
-ENTRYPOINT ["sips"]
+CMD ["sips"]

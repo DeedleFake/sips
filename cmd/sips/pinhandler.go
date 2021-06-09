@@ -90,17 +90,17 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 
 	if len(pin.Origins) != 0 {
 		for _, origin := range pin.Origins {
-			go h.IPFS.SwarmConnect(origin)
+			go h.IPFS.SwarmConnect(ctx, origin)
 		}
 	}
 
-	_, err = h.IPFS.PinAdd(pin.CID)
+	_, err = h.IPFS.PinAdd(ctx, pin.CID)
 	if err != nil {
 		log.Errorf("add pin %v: %v", pin.CID, err)
 		return sips.PinStatus{}, err
 	}
 
-	id, err := h.IPFS.ID()
+	id, err := h.IPFS.ID(ctx)
 	if err != nil {
 		log.Errorf("get IPFS id: %v", err)
 		// Purposefully don't return here.
@@ -201,17 +201,17 @@ func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pi
 
 	if len(pin.Origins) != 0 {
 		for _, origin := range pin.Origins {
-			go h.IPFS.SwarmConnect(origin)
+			go h.IPFS.SwarmConnect(ctx, origin)
 		}
 	}
 
-	_, err = h.IPFS.PinUpdate(oldCID, pin.CID, false)
+	_, err = h.IPFS.PinUpdate(ctx, oldCID, pin.CID, false)
 	if err != nil {
 		log.Errorf("add pin %v: %v", pin.CID, err)
 		return sips.PinStatus{}, err
 	}
 
-	id, err := h.IPFS.ID()
+	id, err := h.IPFS.ID(ctx)
 	if err != nil {
 		log.Errorf("get IPFS id: %v", err)
 		// Purposefully don't return here.
@@ -267,7 +267,7 @@ func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 		return err
 	}
 
-	_, err = h.IPFS.PinRm(pin.CID)
+	_, err = h.IPFS.PinRm(ctx, pin.CID)
 	if err != nil {
 		log.Errorf("unpin %v: %v", pin.CID, err)
 		return err

@@ -35,8 +35,14 @@ func init() {
 			}
 			defer db.Close()
 
+			tx, err := db.Begin(true)
+			if err != nil {
+				return fmt.Errorf("begin transaction: %w", err)
+			}
+			defer tx.Rollback()
+
 			var user dbs.User
-			err = db.One("Name", tokenFlags.User, &user)
+			err = tx.One("Name", tokenFlags.User, &user)
 			if err != nil {
 				return fmt.Errorf("get user %q: %v", tokenFlags.User, err)
 			}
@@ -53,14 +59,14 @@ func init() {
 				Created: time.Now(),
 				User:    user.ID,
 			}
-			err = db.Save(&tok)
+			err = tx.Save(&tok)
 			if err != nil {
 				return fmt.Errorf("save token to database: %v", err)
 			}
 
 			fmt.Println(tok.ID)
 
-			return nil
+			return tx.Commit()
 		},
 	}
 	addCmd.MarkPersistentFlagRequired("user")

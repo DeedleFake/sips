@@ -38,18 +38,24 @@ func init() {
 				return fmt.Errorf("invalid username: %q", args[0])
 			}
 
+			tx, err := db.Begin(true)
+			if err != nil {
+				return fmt.Errorf("begin transaction: %w", err)
+			}
+			defer tx.Rollback()
+
 			user := dbs.User{
 				Created: time.Now(),
 				Name:    args[0],
 			}
-			err = db.Save(&user)
+			err = tx.Save(&user)
 			if err != nil {
 				return fmt.Errorf("save user: %w", err)
 			}
 
 			fmt.Printf("Successfully created user %q.\nNew user ID: %v\n", user.Name, user.ID)
 
-			return nil
+			return tx.Commit()
 		},
 	}
 

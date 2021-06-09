@@ -48,6 +48,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("open database: %w", err)
 	}
 	defer db.Close()
+	log.Infof("Database opened at %q", dbpath)
 
 	ph := PinHandler{
 		IPFS: ipfs,

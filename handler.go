@@ -204,10 +204,13 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 		respondError(rw, http.StatusInternalServerError, "")
 		return
 	}
+	if len(pins) == 0 {
+		pins = nil
+	}
 
 	err = json.NewEncoder(rw).Encode(struct {
 		Count   int         `json:"count"`
-		Results []PinStatus `json:"results"`
+		Results []PinStatus `json:"results,omitempty"`
 	}{
 		Count:   len(pins),
 		Results: pins,

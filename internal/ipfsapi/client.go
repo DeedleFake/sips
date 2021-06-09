@@ -42,6 +42,10 @@ func (c *Client) post(data interface{}, endpoint string, args url.Values) error 
 		return fmt.Errorf("read response: %w", err)
 	}
 
+	if rsp.StatusCode%100 != 2 {
+		return fmt.Errorf("bad status %v: %q", rsp.Status, buf)
+	}
+
 	err = json.Unmarshal(buf, data)
 	if err != nil {
 		return fmt.Errorf("unmarshal response: %w", err)

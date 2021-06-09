@@ -105,9 +105,41 @@ func init() {
 		},
 	}
 
+	rmCmd := &cobra.Command{
+		Use:   "rm <tokens...>",
+		Short: "remove a token from the database, thus invalidating it",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, err := dbs.Open(rootFlags.DBPath)
+			if err != nil {
+				return fmt.Errorf("open database: %w", err)
+			}
+			defer db.Close()
+
+			tx, err := db.Begin(true)
+			if err != nil {
+				return fmt.Errorf("begin transaction: %w", err)
+			}
+			defer tx.Rollback()
+
+			for _, arg := range args {
+				token := dbs.Token{
+					ID: arg,
+				}
+				err = tx.DeleteStruct(&token)
+				if err != nil {
+					return fmt.Errorf("remove token: %w", err)
+				}
+			}
+
+			return tx.Commit()
+		},
+	}
+
 	tokensCmd.AddCommand(
 		addCmd,
 		listCmd,
+		rmCmd,
 	)
 	tokensCmd.PersistentFlags().StringVar(&tokenFlags.User, "user", "", "user that token is associated with")
 }

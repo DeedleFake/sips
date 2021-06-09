@@ -31,7 +31,7 @@ func NewClient(options ...ClientOption) *Client {
 }
 
 func (c *Client) post(ctx context.Context, data interface{}, endpoint string, args url.Values) error {
-	url := c.base + "/" + endpoint + "?" + args.Encode()
+	url := c.base + "/api/v0/" + endpoint + "?" + args.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
@@ -73,7 +73,7 @@ type ID struct {
 
 func (c *Client) ID(ctx context.Context) (ID, error) {
 	var id ID
-	err := c.post(ctx, &id, "api/v0/id", nil)
+	err := c.post(ctx, &id, "id", nil)
 	return id, err
 }
 
@@ -84,7 +84,7 @@ type PinAdd struct {
 
 func (c *Client) PinAdd(ctx context.Context, cids ...string) (PinAdd, error) {
 	var data PinAdd
-	err := c.post(ctx, &data, "api/v0/pin/add", url.Values{
+	err := c.post(ctx, &data, "pin/add", url.Values{
 		"arg":      cids,
 		"progress": []string{"true"},
 	})
@@ -103,7 +103,7 @@ func (c *Client) PinLs(ctx context.Context, pintype PinType, cids ...string) ([]
 			Type PinType
 		}
 	}
-	err := c.post(ctx, &data, "api/v0/pin/ls", url.Values{
+	err := c.post(ctx, &data, "pin/ls", url.Values{
 		"type": []string{string(pintype)},
 		"arg":  cids,
 	})
@@ -126,7 +126,7 @@ func (c *Client) PinUpdate(ctx context.Context, oldCID, newCID string, unpin boo
 	var data struct {
 		Pins []string
 	}
-	err := c.post(ctx, &data, "api/v0/pin/update", url.Values{
+	err := c.post(ctx, &data, "pin/update", url.Values{
 		"arg":   []string{oldCID, newCID},
 		"unpin": []string{strconv.FormatBool(unpin)},
 	})
@@ -137,7 +137,7 @@ func (c *Client) PinRm(ctx context.Context, cids ...string) ([]string, error) {
 	var data struct {
 		Pins []string
 	}
-	err := c.post(ctx, &data, "api/v0/pin/rm", url.Values{
+	err := c.post(ctx, &data, "pin/rm", url.Values{
 		"arg": cids,
 	})
 	return data.Pins, err
@@ -145,7 +145,7 @@ func (c *Client) PinRm(ctx context.Context, cids ...string) ([]string, error) {
 
 func (c *Client) SwarmConnect(ctx context.Context, addr string) error {
 	var data struct{}
-	return c.post(ctx, &data, "api/v0/swarm/connect", url.Values{
+	return c.post(ctx, &data, "swarm/connect", url.Values{
 		"arg": []string{addr},
 	})
 }

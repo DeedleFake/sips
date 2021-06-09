@@ -1,6 +1,7 @@
 package ipfsapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,10 +29,16 @@ func NewClient(options ...ClientOption) *Client {
 	return &c
 }
 
-func (c *Client) post(data interface{}, endpoint string, args url.Values) error {
+func (c *Client) post(ctx context.Context, data interface{}, endpoint string, args url.Values) error {
 	url := c.base + "/" + endpoint + "?" + args.Encode()
 
-	rsp, err := c.client.Post(url, "application/json", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp, err := c.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("post to %q: %w", endpoint, err)
 	}
@@ -63,9 +70,9 @@ type ID struct {
 	PublicKey       string
 }
 
-func (c *Client) ID() (ID, error) {
+func (c *Client) ID(ctx context.Context) (ID, error) {
 	var id ID
-	err := c.post(&id, "/api/v0/id", nil)
+	err := c.post(ctx, &id, "/api/v0/id", nil)
 	return id, err
 }
 
@@ -74,9 +81,9 @@ type PinAdd struct {
 	Progress int
 }
 
-func (c *Client) PinAdd(cids ...string) (PinAdd, error) {
+func (c *Client) PinAdd(ctx context.Context, cids ...string) (PinAdd, error) {
 	var data PinAdd
-	err := c.post(&data, "/api/v0/pin/add", url.Values{
+	err := c.post(ctx, &data, "/api/v0/pin/add", url.Values{
 		"arg":      cids,
 		"progress": []string{"true"},
 	})
@@ -89,13 +96,13 @@ type PinLs struct {
 }
 
 // PinLs gets information about pins from the node.
-func (c *Client) PinLs(pintype PinType, cids ...string) ([]PinLs, error) {
+func (c *Client) PinLs(ctx context.Context, pintype PinType, cids ...string) ([]PinLs, error) {
 	var data struct {
 		Keys map[string]struct {
 			Type PinType
 		}
 	}
-	err := c.post(&data, "/api/v0/pin/ls", url.Values{
+	err := c.post(ctx, &data, "/api/v0/pin/ls", url.Values{
 		"type": []string{string(pintype)},
 		"arg":  cids,
 	})
@@ -114,30 +121,30 @@ func (c *Client) PinLs(pintype PinType, cids ...string) ([]PinLs, error) {
 	return pins, nil
 }
 
-func (c *Client) PinUpdate(oldCID, newCID string, unpin bool) ([]string, error) {
+func (c *Client) PinUpdate(ctx context.Context, oldCID, newCID string, unpin bool) ([]string, error) {
 	var data struct {
 		Pins []string
 	}
-	err := c.post(&data, "/api/v0/pin/update", url.Values{
+	err := c.post(ctx, &data, "/api/v0/pin/update", url.Values{
 		"arg":   []string{oldCID, newCID},
 		"unpin": []string{strconv.FormatBool(unpin)},
 	})
 	return data.Pins, err
 }
 
-func (c *Client) PinRm(cids ...string) ([]string, error) {
+func (c *Client) PinRm(ctx context.Context, cids ...string) ([]string, error) {
 	var data struct {
 		Pins []string
 	}
-	err := c.post(&data, "/api/v0/pin/rm", url.Values{
+	err := c.post(ctx, &data, "/api/v0/pin/rm", url.Values{
 		"arg": cids,
 	})
 	return data.Pins, err
 }
 
-func (c *Client) SwarmConnect(addr string) error {
+func (c *Client) SwarmConnect(ctx context.Context, addr string) error {
 	var data struct{}
-	return c.post(&data, "/api/v0/swarm/connect", url.Values{
+	return c.post(ctx, &data, "/api/v0/swarm/connect", url.Values{
 		"arg": []string{addr},
 	})
 }

@@ -363,14 +363,14 @@ type errorResponseError struct {
 }
 
 func respondError(rw http.ResponseWriter, status int, err string) {
-	var buf strings.Builder
-	json.NewEncoder(&buf).Encode(errorResponse{
+	rw.WriteHeader(status)
+
+	json.NewEncoder(rw).Encode(errorResponse{
 		Error: errorResponseError{
 			Reason:  reasonFromStatus(status),
 			Details: err,
 		},
 	})
-	http.Error(rw, buf.String(), status)
 }
 
 func reasonFromStatus(status int) string {

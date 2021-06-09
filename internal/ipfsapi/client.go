@@ -50,7 +50,7 @@ func (c *Client) post(ctx context.Context, data interface{}, endpoint string, ar
 		return fmt.Errorf("read response: %w", err)
 	}
 
-	if rsp.StatusCode%100 != 2 {
+	if rsp.StatusCode != http.StatusOK {
 		return fmt.Errorf("bad status %v: %q", rsp.Status, buf)
 	}
 

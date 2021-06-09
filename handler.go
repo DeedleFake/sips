@@ -406,12 +406,20 @@ func respondError(rw http.ResponseWriter, status int, err string) {
 }
 
 func reasonFromStatus(status int) string {
-	// TODO: Handle more statuses?
 	switch status {
 	case http.StatusBadRequest:
 		return "BAD_REQUEST"
 
+	case http.StatusUnauthorized:
+		return "UNAUTHORIZED"
+
+	case http.StatusNotFound:
+		return "NOT_FOUND"
+
+	case http.StatusConflict:
+		return "INSUFFICIENT_FUNDS"
+
 	default:
-		return "INTERNAL_ERROR"
+		return "INTERNAL_SERVER_ERROR"
 	}
 }

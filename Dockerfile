@@ -12,8 +12,10 @@ FROM scratch
 COPY --from=build /build/sips /sips
 COPY --from=build /build/sipsctl /sipsctl
 
+ENV XDG_CONFIG_HOME /data
 ENV PATH /
-EXPOSE 8080
-VOLUME /data
 
-ENTRYPOINT ["/sips", "-db", "/data/database.db"]
+EXPOSE 8080
+VOLUME /data/sips
+
+ENTRYPOINT ["sips"]

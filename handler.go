@@ -80,28 +80,42 @@ func Handler(h PinHandler) http.Handler {
 	r.Methods("POST", "OPTIONS").Path("/pins/{requestID}").HandlerFunc(handler.postPinByID)
 	r.Methods("DELETE", "OPTIONS").Path("/pins/{requestID}").HandlerFunc(handler.deletePinByID)
 	r.Use(mux.CORSMethodMiddleware(r))
+	r.Use(func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+
+			token, ok := tokenFromRequest(req)
+			if !ok {
+				respondError(
+					rw,
+					http.StatusUnauthorized,
+					"no bearer token provided",
+				)
+				return
+			}
+			req = req.WithContext(withToken(req.Context(), token))
+
+			h.ServeHTTP(rw, req)
+		})
+	})
 
 	return r
 }
 
 func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	token, ok := tokenFromRequest(req)
-	if !ok {
-		respondError(
-			rw,
-			http.StatusUnauthorized,
-			"no bearer token provided",
-		)
-		return
-	}
-	ctx = withToken(ctx, token)
 
 	q := req.URL.Query()
 	query := defaultPinQuery()
 
 	query.CID = strings.SplitN(q.Get("cid"), ",", 11)
-	if len(query.CID) > 10 {
+	switch {
+	case len(query.CID) == 1:
+		if query.CID[0] == "" {
+			query.CID = nil
+		}
+
+	case len(query.CID) > 10:
 		respondError(
 			rw,
 			http.StatusBadRequest,
@@ -214,16 +228,6 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 
 func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	token, ok := tokenFromRequest(req)
-	if !ok {
-		respondError(
-			rw,
-			http.StatusUnauthorized,
-			"no bearer token provided",
-		)
-		return
-	}
-	ctx = withToken(ctx, token)
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -257,16 +261,6 @@ func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 
 func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	token, ok := tokenFromRequest(req)
-	if !ok {
-		respondError(
-			rw,
-			http.StatusUnauthorized,
-			"no bearer token provided",
-		)
-		return
-	}
-	ctx = withToken(ctx, token)
 
 	vars := mux.Vars(req)
 	id := vars["requestID"]
@@ -294,16 +288,6 @@ func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request) {
 
 func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	token, ok := tokenFromRequest(req)
-	if !ok {
-		respondError(
-			rw,
-			http.StatusUnauthorized,
-			"no bearer token provided",
-		)
-		return
-	}
-	ctx = withToken(ctx, token)
 
 	vars := mux.Vars(req)
 	id := vars["requestID"]
@@ -348,16 +332,6 @@ func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
 
 func (h handler) deletePinByID(rw http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	token, ok := tokenFromRequest(req)
-	if !ok {
-		respondError(
-			rw,
-			http.StatusUnauthorized,
-			"no bearer token provided",
-		)
-		return
-	}
-	ctx = withToken(ctx, token)
 
 	vars := mux.Vars(req)
 	id := vars["requestID"]
@@ -389,23 +363,31 @@ type errorResponseError struct {
 }
 
 func respondError(rw http.ResponseWriter, status int, err string) {
-	var buf strings.Builder
-	json.NewEncoder(&buf).Encode(errorResponse{
+	rw.WriteHeader(status)
+
+	json.NewEncoder(rw).Encode(errorResponse{
 		Error: errorResponseError{
 			Reason:  reasonFromStatus(status),
 			Details: err,
 		},
 	})
-	http.Error(rw, buf.String(), status)
 }
 
 func reasonFromStatus(status int) string {
-	// TODO: Handle more statuses?
 	switch status {
 	case http.StatusBadRequest:
 		return "BAD_REQUEST"
 
+	case http.StatusUnauthorized:
+		return "UNAUTHORIZED"
+
+	case http.StatusNotFound:
+		return "NOT_FOUND"
+
+	case http.StatusConflict:
+		return "INSUFFICIENT_FUNDS"
+
 	default:
-		return "INTERNAL_ERROR"
+		return "INTERNAL_SERVER_ERROR"
 	}
 }

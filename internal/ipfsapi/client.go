@@ -86,7 +86,7 @@ func (c *Client) PinAdd(ctx context.Context, cids ...string) (PinAdd, error) {
 	var data PinAdd
 	err := c.post(ctx, &data, "pin/add", url.Values{
 		"arg":      cids,
-		"progress": []string{"true"},
+		"progress": []string{"false"}, // TODO: Progress support?
 	})
 	return data, err
 }

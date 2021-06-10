@@ -1,3 +1,4 @@
+// sipsctl is a simple utility for administrating the database used by SIPS.
 package main
 
 import (

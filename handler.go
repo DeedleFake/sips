@@ -3,6 +3,7 @@ package sips
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,12 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+)
+
+var (
+	errNoToken            = errors.New("no bearer token provided")
+	errInvalidStatusQuery = errors.New("status list must be non-empty and have at most 4 elements")
+	errNoRequestID        = errors.New("request ID is required")
 )
 
 type ctxKeyToken struct{}
@@ -44,6 +51,17 @@ func tokenFromRequest(req *http.Request) (string, bool) {
 
 // PinHandler is an interface satisfied by types that can be used to
 // handle pinning service requests.
+//
+// Every method is called after the authentication token is pulled
+// from HTTP headers, so it can be assumed that a token is included in
+// the provided context. It should not, however, be assumed that the
+// token is valid.
+//
+// Errors returned by a PinHandler's methods are returned to the
+// client verbatim, so implementations should be careful not to
+// include data that shouldn't be shown to clients in them. If an
+// error implements StatusError, the HTTP status code returned will be
+// whatever the error's Status method returns.
 type PinHandler interface {
 	// Pins returns a list of pinning request statuses based on the
 	// given query.
@@ -89,7 +107,7 @@ func Handler(h PinHandler) http.Handler {
 				respondError(
 					rw,
 					http.StatusUnauthorized,
-					"no bearer token provided",
+					errNoToken,
 				)
 				return
 			}
@@ -119,7 +137,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 		respondError(
 			rw,
 			http.StatusBadRequest,
-			fmt.Sprintf("too many CIDs: %v", len(query.CID)),
+			fmt.Errorf("too many CIDs: %v", len(query.CID)),
 		)
 		return
 	}
@@ -132,7 +150,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 			respondError(
 				rw,
 				http.StatusBadRequest,
-				fmt.Sprintf("invalid matching strategy: %q", match),
+				fmt.Errorf("invalid matching strategy: %q", match),
 			)
 			return
 		}
@@ -144,7 +162,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 		respondError(
 			rw,
 			http.StatusBadRequest,
-			"status list must be non-empty and have at most 4 elements",
+			errInvalidStatusQuery,
 		)
 		return
 	}
@@ -160,7 +178,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 			respondError(
 				rw,
 				http.StatusBadRequest,
-				fmt.Sprintf("invalid before %q: %v", before, err),
+				fmt.Errorf("invalid before %q: %w", before, err),
 			)
 			return
 		}
@@ -174,7 +192,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 			respondError(
 				rw,
 				http.StatusBadRequest,
-				fmt.Sprintf("invalid after %q: %v", after, err),
+				fmt.Errorf("invalid after %q: %w", after, err),
 			)
 			return
 		}
@@ -187,7 +205,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 			respondError(
 				rw,
 				http.StatusBadRequest,
-				fmt.Sprintf("invalid limit %q: %v", limit, err),
+				fmt.Errorf("invalid limit %q: %w", limit, err),
 			)
 			return
 		}
@@ -201,7 +219,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 			respondError(
 				rw,
 				http.StatusBadRequest,
-				fmt.Sprintf("invalid meta %q: %v", meta, err),
+				fmt.Errorf("invalid meta %q: %w", meta, err),
 			)
 			return
 		}
@@ -209,7 +227,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 
 	pins, err := h.h.Pins(ctx, query)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -221,7 +239,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 		Results: pins,
 	})
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 }
@@ -231,7 +249,7 @@ func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -241,20 +259,20 @@ func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 		respondError(
 			rw,
 			http.StatusBadRequest,
-			fmt.Sprintf("failed to parse body: %v", err),
+			fmt.Errorf("failed to parse body: %w", err),
 		)
 		return
 	}
 
 	status, err := h.h.AddPin(ctx, pin)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
 	err = json.NewEncoder(rw).Encode(status)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 }
@@ -268,20 +286,20 @@ func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request) {
 		respondError(
 			rw,
 			http.StatusBadRequest,
-			"request ID is required",
+			errNoRequestID,
 		)
 		return
 	}
 
 	status, err := h.h.GetPin(ctx, id)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
 	err = json.NewEncoder(rw).Encode(status)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 }
@@ -295,14 +313,14 @@ func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
 		respondError(
 			rw,
 			http.StatusBadRequest,
-			"request ID is required",
+			errNoRequestID,
 		)
 		return
 	}
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -312,20 +330,20 @@ func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
 		respondError(
 			rw,
 			http.StatusBadRequest,
-			fmt.Sprintf("failed to parse body: %v", err),
+			fmt.Errorf("failed to parse body: %w", err),
 		)
 		return
 	}
 
 	status, err := h.h.UpdatePin(ctx, id, pin)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
 	err = json.NewEncoder(rw).Encode(status)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 }
@@ -339,14 +357,14 @@ func (h handler) deletePinByID(rw http.ResponseWriter, req *http.Request) {
 		respondError(
 			rw,
 			http.StatusBadRequest,
-			"request ID is required",
+			errNoRequestID,
 		)
 		return
 	}
 
 	err := h.h.DeletePin(ctx, id)
 	if err != nil {
-		respondError(rw, http.StatusInternalServerError, "")
+		respondError(rw, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -362,13 +380,18 @@ type errorResponseError struct {
 	Details string `json:"details,omitempty"`
 }
 
-func respondError(rw http.ResponseWriter, status int, err string) {
+func respondError(rw http.ResponseWriter, status int, err error) {
+	var statusError StatusError
+	if errors.As(err, &statusError) {
+		status = statusError.Status()
+	}
+
 	rw.WriteHeader(status)
 
 	json.NewEncoder(rw).Encode(errorResponse{
 		Error: errorResponseError{
 			Reason:  reasonFromStatus(status),
-			Details: err,
+			Details: err.Error(),
 		},
 	})
 }
@@ -390,4 +413,21 @@ func reasonFromStatus(status int) string {
 	default:
 		return "INTERNAL_SERVER_ERROR"
 	}
+}
+
+// StatusError is implemented by errors returned by PinHandler
+// implementations that want to send custom status codes to the
+// client.
+//
+// Several status codes have special handling. These include
+//    - 400 Bad Request
+//    - 401 Unauthorized
+//    - 404 Not Found
+//    - 409 Conflict
+//
+// These status codes will produce special error messages for the
+// client. All other status codes will produce the same error message
+// as a 500 Internal Server Error code does.
+type StatusError interface {
+	Status() int
 }

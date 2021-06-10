@@ -23,6 +23,7 @@ import (
 func run(ctx context.Context) error {
 	addr := flag.String("addr", ":8080", "address to serve HTTP on")
 	api := flag.String("api", "http://127.0.0.1:5001", "IPFS API to contact")
+	apitimeout := flag.Duration("apitimeout", 30*time.Second, "timeout for requests to the IPFS API")
 	rawdbpath := flag.String("db", "$CONFIG/sips/database.db", "path to database ($CONFIG will be replaced with user config dir path)")
 	flag.Parse()
 
@@ -34,7 +35,7 @@ func run(ctx context.Context) error {
 	ipfs := ipfsapi.NewClient(
 		ipfsapi.WithBaseURL(*api),
 		ipfsapi.WithHTTPClient(&http.Client{
-			Timeout: 10 * time.Second, // TODO: Let the user configure this.
+			Timeout: *apitimeout,
 		}),
 	)
 

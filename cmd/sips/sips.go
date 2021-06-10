@@ -1,3 +1,4 @@
+// sips is the primary implementation of a simple pinning service daemon.
 package main
 
 import (

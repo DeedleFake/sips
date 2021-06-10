@@ -52,6 +52,11 @@ func tokenFromRequest(req *http.Request) (string, bool) {
 // PinHandler is an interface satisfied by types that can be used to
 // handle pinning service requests.
 //
+// Every method is called after the authentication token is pulled
+// from HTTP headers, so it can be assumed that a token is included in
+// the provided context. It should not, however, be assumed that the
+// token is valid.
+//
 // Errors returned by a PinHandler's methods are returned to the
 // client verbatim, so implementations should be careful not to
 // include data that shouldn't be shown to clients in them. If an
@@ -410,6 +415,19 @@ func reasonFromStatus(status int) string {
 	}
 }
 
+// StatusError is implemented by errors returned by PinHandler
+// implementations that want to send custom status codes to the
+// client.
+//
+// Several status codes have special handling. These include
+//    - 400 Bad Request
+//    - 401 Unauthorized
+//    - 404 Not Found
+//    - 409 Conflict
+//
+// These status codes will produce special error messages for the
+// client. All other status codes will produce the same error message
+// as a 500 Internal Server Error code does.
 type StatusError interface {
 	Status() int
 }

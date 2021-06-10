@@ -6,6 +6,8 @@ import (
 	"github.com/asdine/storm"
 )
 
+// Open opens the database, initializing all of the required top-level
+// buckets.
 func Open(path string) (*storm.DB, error) {
 	db, err := storm.Open(path)
 	if err != nil {

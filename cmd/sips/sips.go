@@ -92,7 +92,7 @@ func run(ctx context.Context) error {
 }
 
 func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, cancel := signal.NotifyContext(context.Background(), cli.Signals...)
 	defer cancel()
 
 	err := run(ctx)

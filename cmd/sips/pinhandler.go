@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"strconv"
 	"time"
 
@@ -23,15 +22,13 @@ type PinHandler struct {
 func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinStatus, error) {
 	tx, err := h.DB.Begin(false)
 	if err != nil {
-		log.Errorf("begin transaction: %v", err)
-		return nil, err
+		return nil, log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	user, err := auth(ctx, tx)
 	if err != nil {
-		log.Errorf("authenticate: %v", err)
-		return nil, err
+		return nil, Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
 	selector := tx.Select(&queryMatcher{Query: query})
@@ -42,8 +39,7 @@ func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinSt
 	var dbpins []dbs.Pin
 	err = selector.OrderBy("Created").Find(&dbpins)
 	if (err != nil) && (!errors.Is(err, storm.ErrNotFound)) {
-		log.Errorf("find pins for %v: %v", user.Name, err)
-		return nil, err
+		return nil, log.Errorf("find pins for %v: %w", user.Name, err)
 	}
 
 	pins := make([]sips.PinStatus, 0, len(dbpins))
@@ -65,15 +61,13 @@ func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinSt
 func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, error) {
 	tx, err := h.DB.Begin(true)
 	if err != nil {
-		log.Errorf("begin transaction: %v", err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	user, err := auth(ctx, tx)
 	if err != nil {
-		log.Errorf("authenticate: %v", err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
 	dbpin := dbs.Pin{
@@ -84,8 +78,7 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 	}
 	err = tx.Save(&dbpin)
 	if err != nil {
-		log.Errorf("save pin %q: %v", pin.CID, err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("save pin %q: %w", pin.CID, err)
 	}
 
 	if len(pin.Origins) != 0 {
@@ -96,13 +89,12 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 
 	_, err = h.IPFS.PinAdd(ctx, pin.CID)
 	if err != nil {
-		log.Errorf("add pin %v: %v", pin.CID, err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("add pin %v: %w", pin.CID, err)
 	}
 
 	id, err := h.IPFS.ID(ctx)
 	if err != nil {
-		log.Errorf("get IPFS id: %v", err)
+		log.Errorf("get IPFS id: %w", err)
 		// Purposefully don't return here.
 	}
 
@@ -118,33 +110,32 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 func (h PinHandler) GetPin(ctx context.Context, requestID string) (sips.PinStatus, error) {
 	pinID, err := strconv.ParseUint(requestID, 16, 64)
 	if err != nil {
-		log.Errorf("parse request ID %q: %v", requestID, err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, BadRequest(log.Errorf("parse request ID %q: %w", requestID, err))
 	}
 
 	tx, err := h.DB.Begin(false)
 	if err != nil {
-		log.Errorf("begin transaction: %v", err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	user, err := auth(ctx, tx)
 	if err != nil {
-		log.Errorf("authenticate: %v", err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
 	var pin dbs.Pin
 	err = tx.One("ID", pinID, &pin)
 	if err != nil {
-		log.Errorf("find pin %v: %v", requestID, err)
+		err = log.Errorf("find pin %v: %w", requestID, err)
+		if errors.Is(err, storm.ErrNotFound) {
+			err = NotFound(err)
+		}
 		return sips.PinStatus{}, err
 	}
 
 	if pin.User != user.ID {
-		log.Errorf("user %v is not authorized to see pin %v", user.Name, requestID)
-		return sips.PinStatus{}, fs.ErrPermission
+		return sips.PinStatus{}, NotFound(log.Errorf("find pin %v: %w", requestID, storm.ErrNotFound))
 	}
 
 	return sips.PinStatus{
@@ -161,42 +152,40 @@ func (h PinHandler) GetPin(ctx context.Context, requestID string) (sips.PinStatu
 func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pin) (sips.PinStatus, error) {
 	pinID, err := strconv.ParseUint(requestID, 16, 64)
 	if err != nil {
-		log.Errorf("parse request ID: %q: %v", requestID, err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, BadRequest(log.Errorf("parse request ID: %q: %w", requestID, err))
 	}
 
 	tx, err := h.DB.Begin(true)
 	if err != nil {
-		log.Errorf("begin transaction: %v", err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	user, err := auth(ctx, tx)
 	if err != nil {
-		log.Errorf("authenticate: %v", err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, NotFound(log.Errorf("authenticate: %w", err))
 	}
 
 	var dbpin dbs.Pin
 	err = tx.One("ID", pinID, &dbpin)
 	if err != nil {
-		log.Errorf("find pin %v: %v", requestID, err)
+		err = log.Errorf("find pin %v: %w", requestID, err)
+		if errors.Is(err, storm.ErrNotFound) {
+			err = NotFound(err)
+		}
 		return sips.PinStatus{}, err
 	}
 	oldCID := dbpin.CID
 
 	if dbpin.User != user.ID {
-		log.Errorf("user %v not allowed to update pin %v", user.Name, requestID)
-		return sips.PinStatus{}, fs.ErrPermission
+		return sips.PinStatus{}, NotFound(log.Errorf("find pin %v: %w", requestID, storm.ErrNotFound))
 	}
 
 	dbpin.Name = pin.Name
 	dbpin.CID = pin.CID
 	err = tx.Update(&dbpin)
 	if err != nil {
-		log.Errorf("update pin %v: %v", requestID, err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("update pin %v: %w", requestID, err)
 	}
 
 	if len(pin.Origins) != 0 {
@@ -207,13 +196,12 @@ func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pi
 
 	_, err = h.IPFS.PinUpdate(ctx, oldCID, pin.CID, false)
 	if err != nil {
-		log.Errorf("add pin %v: %v", pin.CID, err)
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("add pin %v: %w", pin.CID, err)
 	}
 
 	id, err := h.IPFS.ID(ctx)
 	if err != nil {
-		log.Errorf("get IPFS id: %v", err)
+		log.Errorf("get IPFS id: %w", err)
 		// Purposefully don't return here.
 	}
 
@@ -232,45 +220,42 @@ func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pi
 func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 	pinID, err := strconv.ParseUint(requestID, 16, 64)
 	if err != nil {
-		log.Errorf("parse request ID %q: %v", requestID, err)
-		return err
+		return BadRequest(log.Errorf("parse request ID %q: %w", requestID, err))
 	}
 
 	tx, err := h.DB.Begin(true)
 	if err != nil {
-		log.Errorf("begin transaction: %v", err)
-		return err
+		return log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	user, err := auth(ctx, tx)
 	if err != nil {
-		log.Errorf("authenticate: %v", err)
-		return err
+		return Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
 	var pin dbs.Pin
 	err = tx.One("ID", pinID, &pin)
 	if err != nil {
-		log.Errorf("find pin %v: %v", requestID, err)
+		err = log.Errorf("find pin %v: %w", requestID, err)
+		if errors.Is(err, storm.ErrNotFound) {
+			err = NotFound(err)
+		}
 		return err
 	}
 
 	if pin.User != user.ID {
-		log.Errorf("user %v is not authorized to delete pin %v", user.Name, requestID)
-		return fs.ErrPermission // TODO: That's just not right.
+		return NotFound(log.Errorf("find pin %v: %w", requestID, storm.ErrNotFound))
 	}
 
 	err = tx.DeleteStruct(&pin)
 	if err != nil {
-		log.Errorf("delete pin %v: %v", requestID, err)
-		return err
+		return log.Errorf("delete pin %v: %w", requestID, err)
 	}
 
 	_, err = h.IPFS.PinRm(ctx, pin.CID)
 	if err != nil {
-		log.Errorf("unpin %v: %v", pin.CID, err)
-		return err
+		return log.Errorf("unpin %v: %w", pin.CID, err)
 	}
 
 	return tx.Commit()

@@ -156,12 +156,56 @@ func (q *PinQueue) run(ctx context.Context) {
 	}
 }
 
+func (q *PinQueue) connect(ctx context.Context, origins []string) {
+	for _, origin := range origins {
+		go q.IPFS.SwarmConnect(ctx, origin)
+	}
+}
+
 func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) {
 	defer func() {
 		done <- pin.ID
 	}()
 
-	panic("Not implemented.")
+	q.connect(ctx, pin.Origins)
+
+	if pin.Status == sips.Queued {
+		pin.Status = sips.Pinning
+		err := q.DB.Update(&pin)
+		if err != nil {
+			log.Errorf("update pin %v status from queued to pinning: %w", pin.ID, err)
+			return
+		}
+	}
+
+	progress, err := q.IPFS.PinAddProgress(ctx, pin.CID)
+	if err != nil {
+		log.Errorf("pin %v to IPFS: %w", pin.CID, err)
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case progress, closed := <-progress:
+			if closed {
+				break
+			}
+
+			if progress.Err != nil {
+				log.Errorf("pin %v to IPFS: %w", pin.CID, progress.Err)
+				return
+			}
+		}
+	}
+
+	pin.Status = sips.Pinned
+	err = q.DB.Update(&pin)
+	if err != nil {
+		log.Errorf("update pin %v status to pinned: %w", pin.ID, err)
+		return
+	}
 }
 
 func (q *PinQueue) updatePin(ctx context.Context, done chan<- uint64, from, to dbs.Pin) {

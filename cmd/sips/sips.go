@@ -52,9 +52,17 @@ func run(ctx context.Context) error {
 	defer db.Close()
 	log.Infof("Database opened at %q", dbpath)
 
-	ph := PinHandler{
+	queue := PinQueue{
 		IPFS: ipfs,
 		DB:   db,
+	}
+	queue.Start(ctx)
+	defer queue.Stop()
+
+	ph := PinHandler{
+		Queue: &queue,
+		IPFS:  ipfs,
+		DB:    db,
 	}
 
 	server := http.Server{

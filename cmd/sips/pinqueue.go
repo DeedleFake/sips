@@ -178,9 +178,18 @@ func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) 
 		}
 	}
 
+	defer func() {
+		err := q.DB.Update(&pin)
+		if err != nil {
+			log.Errorf("update pin %v status to %v: %w", pin.ID, pin.Status, err)
+			return
+		}
+	}()
+
 	progress, err := q.IPFS.PinAddProgress(ctx, pin.CID)
 	if err != nil {
 		log.Errorf("pin %v to IPFS: %w", pin.CID, err)
+		pin.Status = sips.Failed
 		return
 	}
 
@@ -195,24 +204,13 @@ func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) 
 
 			if progress.Err != nil {
 				log.Errorf("pin %v to IPFS: %w", pin.CID, progress.Err)
-
 				pin.Status = sips.Failed
-				err = q.DB.Update(&pin)
-				if err != nil {
-					log.Errorf("update pin %v status to failed: %w", pin.ID, err)
-					return
-				}
 				return
 			}
 		}
 	}
 
 	pin.Status = sips.Pinned
-	err = q.DB.Update(&pin)
-	if err != nil {
-		log.Errorf("update pin %v status to pinned: %w", pin.ID, err)
-		return
-	}
 }
 
 func (q *PinQueue) updatePin(ctx context.Context, done chan<- uint64, from, to dbs.Pin) {

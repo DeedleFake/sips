@@ -11,7 +11,7 @@ import (
 
 type PinQueue struct {
 	running uint32
-	stop    chan struct{}
+	cancel  context.CancelFunc
 	done    chan struct{}
 
 	add    chan dbs.Pin
@@ -30,51 +30,35 @@ func (q *PinQueue) unsetRunning() {
 	atomic.StoreUint32(&q.running, 0)
 }
 
-func (q *PinQueue) checkRunning() {
-	select {
-	case <-q.stop:
-		panic("not running")
-	default:
-		if atomic.LoadUint32(&q.running) == 0 {
-			panic("not running")
-		}
-	}
-}
-
 func (q *PinQueue) Start(ctx context.Context) {
 	if !q.setRunning() {
 		panic("already running")
 	}
 
-	go func() {
-		q.stop = make(chan struct{})
-		q.done = make(chan struct{})
+	ctx, q.cancel = context.WithCancel(ctx)
+	q.done = make(chan struct{})
 
-		q.add = make(chan dbs.Pin)
-		q.update = make(chan [2]dbs.Pin)
-		q.del = make(chan dbs.Pin)
+	q.add = make(chan dbs.Pin)
+	q.update = make(chan [2]dbs.Pin)
+	q.del = make(chan dbs.Pin)
 
-		q.run(ctx)
-	}()
+	go q.run(ctx)
 }
 
 func (q *PinQueue) Stop() {
-	close(q.stop)
+	q.cancel()
 	<-q.done
 }
 
 func (q *PinQueue) Add() chan<- dbs.Pin {
-	q.checkRunning()
 	return q.add
 }
 
 func (q *PinQueue) Update() chan<- [2]dbs.Pin {
-	q.checkRunning()
 	return q.update
 }
 
 func (q *PinQueue) Delete() chan<- dbs.Pin {
-	q.checkRunning()
 	return q.del
 }
 
@@ -88,20 +72,31 @@ func (q *PinQueue) run(ctx context.Context) {
 
 	var stopping bool
 	jobs := make(map[uint64]context.CancelFunc)
-	jobctx, cancelAll := context.WithCancel(ctx)
 	jobdone := make(chan uint64)
+	jobctx := func(id uint64) context.Context {
+		if cancel, ok := jobs[id]; ok {
+			cancel()
+		}
 
+		ctx, cancel := context.WithCancel(ctx)
+		jobs[id] = cancel
+		return ctx
+	}
+
+	ctxdone := ctx.Done()
 	for {
 		select {
-		case <-ctx.Done():
-			return
+		case <-ctxdone:
+			ctxdone = nil
 
-		case <-q.stop:
-			cancelAll()
 			add = nil
 			update = nil
 			del = nil
+
 			stopping = true
+			if len(jobs) == 0 {
+				return
+			}
 
 		case id := <-jobdone:
 			delete(jobs, id)
@@ -110,18 +105,15 @@ func (q *PinQueue) run(ctx context.Context) {
 			}
 
 		case pin := <-add:
-			sub, cancel := context.WithCancel(jobctx)
-			jobs[pin.ID] = cancel
+			sub := jobctx(pin.ID)
 			go q.addPin(sub, jobdone, pin)
 
 		case pins := <-update:
-			sub, cancel := context.WithCancel(jobctx)
-			jobs[pins[1].ID] = cancel
+			sub := jobctx(pins[1].ID)
 			go q.updatePin(sub, jobdone, pins[0], pins[1])
 
 		case pin := <-del:
-			sub, cancel := context.WithCancel(jobctx)
-			jobs[pin.ID] = cancel
+			sub := jobctx(pin.ID)
 			go q.deletePin(sub, jobdone, pin)
 		}
 	}

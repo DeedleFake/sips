@@ -195,6 +195,13 @@ func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) 
 
 			if progress.Err != nil {
 				log.Errorf("pin %v to IPFS: %w", pin.CID, progress.Err)
+
+				pin.Status = sips.Failed
+				err = q.DB.Update(&pin)
+				if err != nil {
+					log.Errorf("update pin %v status to failed: %w", pin.ID, err)
+					return
+				}
 				return
 			}
 		}

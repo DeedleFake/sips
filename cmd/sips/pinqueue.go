@@ -4,11 +4,16 @@ import (
 	"context"
 	"sync/atomic"
 
+	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/dbs"
 	"github.com/DeedleFake/sips/internal/ipfsapi"
+	"github.com/DeedleFake/sips/internal/log"
 	"github.com/asdine/storm"
+	sq "github.com/asdine/storm/q"
 )
 
+// PinQueue handles queued pin requests, synchronizing them to both
+// the database and IPFS.
 type PinQueue struct {
 	running uint32
 	cancel  context.CancelFunc
@@ -30,6 +35,9 @@ func (q *PinQueue) unsetRunning() {
 	atomic.StoreUint32(&q.running, 0)
 }
 
+// Start starts the queue. No other methods should be called before
+// this one returns, and calls to this method while the queue is
+// running will panic.
 func (q *PinQueue) Start(ctx context.Context) {
 	if !q.setRunning() {
 		panic("already running")
@@ -43,23 +51,52 @@ func (q *PinQueue) Start(ctx context.Context) {
 	q.del = make(chan dbs.Pin)
 
 	go q.run(ctx)
+	q.queueExisting(ctx)
 }
 
+// Stop stops a running queue. It does not return until the queue has
+// completely flushed all of its jobs.
 func (q *PinQueue) Stop() {
 	q.cancel()
 	<-q.done
 }
 
+// Add returns a channel to which pins that are to be added should be
+// sent.
 func (q *PinQueue) Add() chan<- dbs.Pin {
 	return q.add
 }
 
+// Update returns a channel to which pairs of pins should be sent
+// where the first pin is to be updated to the second one.
 func (q *PinQueue) Update() chan<- [2]dbs.Pin {
 	return q.update
 }
 
+// Delete returns a channel to which pins that are to be deleted
+// should be sent.
 func (q *PinQueue) Delete() chan<- dbs.Pin {
 	return q.del
+}
+
+func (q *PinQueue) queueExisting(ctx context.Context) {
+	tx, err := q.DB.Begin(false)
+	if err != nil {
+		log.Errorf("begin transaction for existing queued pins: %w", err)
+		return
+	}
+	defer tx.Rollback()
+
+	var pins []dbs.Pin
+	err = tx.Select(sq.In("Status", []sips.RequestStatus{sips.Queued, sips.Pinning})).Find(&pins)
+	if err != nil {
+		log.Errorf("find existing queued pins: %w", err)
+		return
+	}
+
+	for _, pin := range pins {
+		q.add <- pin
+	}
 }
 
 func (q *PinQueue) run(ctx context.Context) {

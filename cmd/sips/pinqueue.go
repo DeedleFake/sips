@@ -205,7 +205,9 @@ func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) 
 			return
 		case progress, closed := <-progress:
 			if closed {
-				break
+				log.Infof("Finished pinning %v as %q (%v)", pin.CID, pin.Name, pin.ID)
+				pin.Status = sips.Pinned
+				return
 			}
 
 			if progress.Err != nil {
@@ -215,8 +217,6 @@ func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) 
 			}
 		}
 	}
-
-	pin.Status = sips.Pinned
 }
 
 func (q *PinQueue) updatePin(ctx context.Context, done chan<- uint64, from, to dbs.Pin) {

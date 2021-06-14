@@ -50,8 +50,9 @@ func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinSt
 			Status:    pin.Status,
 			Created:   pin.Created,
 			Pin: sips.Pin{
-				CID:  pin.CID,
-				Name: pin.Name,
+				CID:     pin.CID,
+				Name:    pin.Name,
+				Origins: pin.Origins,
 			},
 		})
 	}

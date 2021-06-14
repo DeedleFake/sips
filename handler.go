@@ -65,6 +65,10 @@ func tokenFromRequest(req *http.Request) (string, bool) {
 type PinHandler interface {
 	// Pins returns a list of pinning request statuses based on the
 	// given query.
+	//
+	// BUG: Doesn't properly allow a differenation between number of
+	// results returned and total number of results, thus breaking
+	// paging.
 	Pins(ctx context.Context, query PinQuery) ([]PinStatus, error)
 
 	// AddPin adds a new pin to the service's backend.

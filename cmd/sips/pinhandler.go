@@ -250,7 +250,7 @@ func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 	case h.Queue.Delete() <- pin:
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func auth(ctx context.Context, db storm.Node) (user dbs.User, err error) {

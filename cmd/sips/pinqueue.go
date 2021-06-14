@@ -252,6 +252,7 @@ func (q *PinQueue) updatePin(ctx context.Context, done chan<- uint64, from, to d
 		to.Status = sips.Failed
 		return
 	}
+	log.Infof("Pin %v updated from %v to %v.", to.ID, from.CID, to.CID)
 
 	to.Status = sips.Pinned
 }
@@ -266,6 +267,7 @@ func (q *PinQueue) deletePin(ctx context.Context, done chan<- uint64, pin dbs.Pi
 		log.Errorf("remove pin %v from IPFS: %w", pin.CID, err)
 		return
 	}
+	log.Infof("Pin %v (%v, %v) deleted.", pin.ID, pin.Name, pin.CID)
 
 	err = q.DB.DeleteStruct(&pin)
 	if err != nil {

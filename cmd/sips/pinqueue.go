@@ -89,7 +89,7 @@ func (q *PinQueue) queueExisting(ctx context.Context) {
 	defer tx.Rollback()
 
 	var pins []dbs.Pin
-	err = tx.Select(sq.In("Status", []sips.RequestStatus{sips.Queued, sips.Pinning})).Find(&pins)
+	err = tx.Select(sq.In("Status", []sips.RequestStatus{"", sips.Queued, sips.Pinning})).Find(&pins)
 	if err != nil {
 		if errors.Is(err, storm.ErrNotFound) {
 			log.Infof("No existing queued or in-progress pins.")
@@ -175,11 +175,12 @@ func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) 
 
 	q.connect(ctx, pin.Origins)
 
-	if pin.Status == sips.Queued {
+	switch pin.Status {
+	case "", sips.Queued:
 		pin.Status = sips.Pinning
 		err := q.DB.Update(&pin)
 		if err != nil {
-			log.Errorf("update pin %v status from queued to pinning: %w", pin.ID, err)
+			log.Errorf("update pin %v status to pinning: %w", pin.ID, err)
 			return
 		}
 	}

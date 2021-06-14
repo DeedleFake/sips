@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/dbs"
 	"github.com/spf13/cobra"
 )
@@ -50,6 +51,7 @@ func init() {
 				User:    user.ID,
 				Name:    addFlags.Name,
 				CID:     args[0],
+				Status:  sips.Queued,
 			}
 			err = tx.Save(&pin)
 			if err != nil {
@@ -133,9 +135,49 @@ func init() {
 	}
 	rmCmd.Flags().BoolVar(&rmFlags.Force, "force", false, "allow deletion of multiple matching pins per name")
 
+	var setstatusFlags struct {
+		Status string
+	}
+	setstatusCmd := &cobra.Command{
+		Use:   "setstatus <pin IDs...>",
+		Short: "manually sets the status of pins",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			db, err := dbs.Open(rootFlags.DBPath)
+			if err != nil {
+				return fmt.Errorf("open database: %w", err)
+			}
+			defer db.Close()
+
+			tx, err := db.Begin(true)
+			if err != nil {
+				return fmt.Errorf("begin transaction: %w", err)
+			}
+			defer tx.Rollback()
+
+			for _, id := range args {
+				var pin dbs.Pin
+				err = tx.One("ID", id, &pin)
+				if err != nil {
+					return fmt.Errorf("get pin %v: %w", id, err)
+				}
+
+				pin.Status = sips.RequestStatus(setstatusFlags.Status)
+				err = tx.Update(&pin)
+				if err != nil {
+					return fmt.Errorf("update pin %v: %w", id, err)
+				}
+			}
+
+			return tx.Commit()
+		},
+	}
+	setstatusCmd.Flags().StringVar(&setstatusFlags.Status, "status", string(sips.Queued), "status to reset pins to")
+
 	pinsCmd.AddCommand(
 		addCmd,
 		listCmd,
 		rmCmd,
+		setstatusCmd,
 	)
 }

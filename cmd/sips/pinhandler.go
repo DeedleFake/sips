@@ -218,7 +218,7 @@ func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 		return BadRequest(log.Errorf("parse request ID %q: %w", requestID, err))
 	}
 
-	tx, err := h.DB.Begin(true)
+	tx, err := h.DB.Begin(false)
 	if err != nil {
 		return log.Errorf("begin transaction: %w", err)
 	}

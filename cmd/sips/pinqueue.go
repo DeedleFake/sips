@@ -220,7 +220,34 @@ func (q *PinQueue) updatePin(ctx context.Context, done chan<- uint64, from, to d
 		done <- to.ID
 	}()
 
-	panic("Not implemented.")
+	q.connect(ctx, to.Origins)
+
+	if to.Status == sips.Queued {
+		to.Status = sips.Pinning
+		err := q.DB.Update(&to)
+		if err != nil {
+			log.Errorf("update pin %v status from queued to pinning: %w", to.ID, err)
+			return
+		}
+	}
+
+	defer func() {
+		err := q.DB.Update(&to)
+		if err != nil {
+			log.Errorf("update pin %v status to %v: %w", to.ID, to.Status, err)
+			return
+		}
+	}()
+
+	// TODO: Unpin updated pins manually if nothing else has pinned them.
+	_, err := q.IPFS.PinUpdate(ctx, from.CID, to.CID, false)
+	if err != nil {
+		log.Errorf("update pin %v to %v: %w", from.ID, to.CID, err)
+		to.Status = sips.Failed
+		return
+	}
+
+	to.Status = sips.Pinned
 }
 
 func (q *PinQueue) deletePin(ctx context.Context, done chan<- uint64, pin dbs.Pin) {
@@ -228,5 +255,15 @@ func (q *PinQueue) deletePin(ctx context.Context, done chan<- uint64, pin dbs.Pi
 		done <- pin.ID
 	}()
 
-	panic("Not implemented.")
+	_, err := q.IPFS.PinRm(ctx, pin.CID)
+	if err != nil {
+		log.Errorf("remove pin %v from IPFS: %w", pin.CID, err)
+		return
+	}
+
+	err = q.DB.DeleteStruct(&pin)
+	if err != nil {
+		log.Errorf("delete pin %v from database: %w", pin.ID, err)
+		return
+	}
 }

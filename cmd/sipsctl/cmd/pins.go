@@ -85,7 +85,7 @@ func init() {
 			}
 
 			for _, pin := range pins {
-				fmt.Printf("%v: %v as %q\n", pin.ID, pin.CID, pin.Name)
+				fmt.Printf("%v: %v as %q (%v)\n", pin.ID, pin.CID, pin.Name, pin.Status)
 			}
 
 			return nil

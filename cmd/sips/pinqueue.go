@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 
 	"github.com/DeedleFake/sips"
@@ -90,6 +91,11 @@ func (q *PinQueue) queueExisting(ctx context.Context) {
 	var pins []dbs.Pin
 	err = tx.Select(sq.In("Status", []sips.RequestStatus{sips.Queued, sips.Pinning})).Find(&pins)
 	if err != nil {
+		if errors.Is(err, storm.ErrNotFound) {
+			log.Infof("No existing queued or in-progress pins.")
+			return
+		}
+
 		log.Errorf("find existing queued pins: %w", err)
 		return
 	}

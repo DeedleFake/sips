@@ -205,7 +205,7 @@ func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) 
 			return
 		case progress, closed := <-progress:
 			if closed {
-				log.Infof("Finished pinning %v as %q (%v)", pin.CID, pin.Name, pin.ID)
+				log.Infof("Pinned %v as %q (%v)", pin.CID, pin.Name, pin.ID)
 				pin.Status = sips.Pinned
 				return
 			}
@@ -267,7 +267,7 @@ func (q *PinQueue) deletePin(ctx context.Context, done chan<- uint64, pin dbs.Pi
 		log.Errorf("remove pin %v from IPFS: %w", pin.CID, err)
 		return
 	}
-	log.Infof("Pin %v (%v, %v) deleted.", pin.ID, pin.Name, pin.CID)
+	log.Infof("Pin %v (%q, %v) deleted.", pin.ID, pin.Name, pin.CID)
 
 	err = q.DB.DeleteStruct(&pin)
 	if err != nil {

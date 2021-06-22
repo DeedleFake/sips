@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	Bucket     = "schema"
-	VersionKey = "version"
+	Bucket        = "schema"
+	VersionKey    = "version"
+	VersionLayout = "2006-01-02T15:04:05"
 )
 
 // A Migration is a function that is run in order to implement changes

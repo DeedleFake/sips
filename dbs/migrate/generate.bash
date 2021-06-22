@@ -20,7 +20,7 @@ import (
 )
 
 func init() {
-	v, err := time.Parse("2006-01-02T15:04:05", "$time")
+	v, err := time.Parse(VersionLayout, "$time")
 	if err != nil {
 		panic(fmt.Errorf("parse generated migration version %q: %w", "$time", err))
 	}

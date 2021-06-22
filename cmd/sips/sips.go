@@ -15,6 +15,7 @@ import (
 
 	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/dbs"
+	"github.com/DeedleFake/sips/dbs/migrate"
 	"github.com/DeedleFake/sips/internal/cli"
 	"github.com/DeedleFake/sips/internal/ipfsapi"
 	"github.com/DeedleFake/sips/internal/log"
@@ -25,6 +26,7 @@ func run(ctx context.Context) error {
 	api := flag.String("api", "http://127.0.0.1:5001", "IPFS API to contact")
 	apitimeout := flag.Duration("apitimeout", 30*time.Second, "timeout for requests to the IPFS API")
 	rawdbpath := flag.String("db", "$CONFIG/sips/database.db", "path to database ($CONFIG will be replaced with user config dir path)")
+	domigration := flag.Bool("migrate", true, "perform a database migration upon starting")
 	flag.Parse()
 
 	dbpath, configDirUsed, err := cli.ExpandConfig(*rawdbpath)
@@ -51,6 +53,13 @@ func run(ctx context.Context) error {
 	}
 	defer db.Close()
 	log.Infof("Database opened at %q", dbpath)
+
+	if *domigration {
+		err = migrate.Run(db)
+		if err != nil {
+			return fmt.Errorf("migrate database: %w", err)
+		}
+	}
 
 	ph := PinHandler{
 		IPFS: ipfs,

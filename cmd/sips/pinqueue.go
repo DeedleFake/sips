@@ -119,6 +119,7 @@ func (q *PinQueue) run(ctx context.Context) {
 	jobctx := func(id uint64) context.Context {
 		if cancel, ok := jobs[id]; ok {
 			cancel()
+			// TODO: Wait for the job to actually cancel completely?
 		}
 
 		ctx, cancel := context.WithCancel(ctx)
@@ -149,15 +150,24 @@ func (q *PinQueue) run(ctx context.Context) {
 
 		case pin := <-add:
 			sub := jobctx(pin.ID)
-			go q.addPin(sub, jobdone, pin)
+			go func() {
+				q.addPin(sub, pin)
+				jobdone <- pin.ID
+			}()
 
 		case pins := <-update:
 			sub := jobctx(pins[1].ID)
-			go q.updatePin(sub, jobdone, pins[0], pins[1])
+			go func() {
+				q.updatePin(sub, pins[0], pins[1])
+				jobdone <- pins[1].ID
+			}()
 
 		case pin := <-del:
 			sub := jobctx(pin.ID)
-			go q.deletePin(sub, jobdone, pin)
+			go func() {
+				q.deletePin(sub, pin)
+				jobdone <- pin.ID
+			}()
 		}
 	}
 }
@@ -168,11 +178,7 @@ func (q *PinQueue) connect(ctx context.Context, origins []string) {
 	}
 }
 
-func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) {
-	defer func() {
-		done <- pin.ID
-	}()
-
+func (q *PinQueue) addPin(ctx context.Context, pin dbs.Pin) {
 	q.connect(ctx, pin.Origins)
 
 	switch pin.Status {
@@ -220,13 +226,7 @@ func (q *PinQueue) addPin(ctx context.Context, done chan<- uint64, pin dbs.Pin) 
 	}
 }
 
-func (q *PinQueue) updatePin(ctx context.Context, done chan<- uint64, from, to dbs.Pin) {
-	defer func() {
-		// from and to should always have the same ID, so the choice here
-		// is arbitrary.
-		done <- to.ID
-	}()
-
+func (q *PinQueue) updatePin(ctx context.Context, from, to dbs.Pin) {
 	q.connect(ctx, to.Origins)
 
 	if to.Status == sips.Queued {
@@ -258,11 +258,7 @@ func (q *PinQueue) updatePin(ctx context.Context, done chan<- uint64, from, to d
 	to.Status = sips.Pinned
 }
 
-func (q *PinQueue) deletePin(ctx context.Context, done chan<- uint64, pin dbs.Pin) {
-	defer func() {
-		done <- pin.ID
-	}()
-
+func (q *PinQueue) deletePin(ctx context.Context, pin dbs.Pin) {
 	_, err := q.IPFS.PinRm(ctx, pin.CID)
 	if err != nil {
 		log.Errorf("remove pin %v from IPFS: %w", pin.CID, err)

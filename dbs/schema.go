@@ -2,6 +2,8 @@ package dbs
 
 import (
 	"time"
+
+	"github.com/DeedleFake/sips"
 )
 
 // User reprsents a user in the database.
@@ -22,7 +24,9 @@ type Token struct {
 type Pin struct {
 	ID      uint64 `storm:"increment"`
 	Created time.Time
-	User    uint64 `storm:"index"`
-	Name    string `storm:"index"`
-	CID     string `storm:"index"`
+	User    uint64             `storm:"index"`
+	Status  sips.RequestStatus `storm:"index"`
+	Name    string             `storm:"index"`
+	CID     string             `storm:"index"`
+	Origins []string
 }

@@ -31,17 +31,9 @@ func NewClient(options ...ClientOption) *Client {
 }
 
 func (c *Client) post(ctx context.Context, data interface{}, endpoint string, args url.Values) error {
-	url := c.base + "/api/v0/" + endpoint + "?" + args.Encode()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	rsp, err := c.postResponse(ctx, endpoint, args)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	rsp, err := c.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("post to %q: %w", endpoint, err)
+		return fmt.Errorf("post: %w", err)
 	}
 	defer rsp.Body.Close()
 
@@ -62,6 +54,23 @@ func (c *Client) post(ctx context.Context, data interface{}, endpoint string, ar
 	return nil
 }
 
+func (c *Client) postResponse(ctx context.Context, endpoint string, args url.Values) (*http.Response, error) {
+	url := c.base + "/api/v0/" + endpoint + "?" + args.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp, err := c.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("post to %q: %w", endpoint, err)
+	}
+
+	return rsp, err
+}
+
 type ID struct {
 	Addresses       []string
 	AgentVersion    string
@@ -78,17 +87,64 @@ func (c *Client) ID(ctx context.Context) (ID, error) {
 }
 
 type PinAdd struct {
-	Pins     []string
-	Progress int
+	Pins []string
 }
 
 func (c *Client) PinAdd(ctx context.Context, cids ...string) (PinAdd, error) {
 	var data PinAdd
 	err := c.post(ctx, &data, "pin/add", url.Values{
 		"arg":      cids,
-		"progress": []string{"false"}, // TODO: Progress support?
+		"progress": []string{"false"},
 	})
 	return data, err
+}
+
+type PinAddProgress struct {
+	Pins     []string
+	Progress int
+	Err      error
+}
+
+func (c *Client) PinAddProgress(ctx context.Context, cids ...string) (<-chan PinAddProgress, error) {
+	rsp, err := c.postResponse(ctx, "pin/add", url.Values{
+		"arg":      cids,
+		"progress": []string{"true"},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	progress := make(chan PinAddProgress)
+	go func() {
+		defer rsp.Body.Close()
+		defer close(progress)
+
+		d := json.NewDecoder(rsp.Body)
+		for {
+			if !d.More() {
+				break
+			}
+
+			var data PinAddProgress
+			err := d.Decode(&data)
+			if err != nil {
+				select {
+				case <-ctx.Done():
+				case progress <- PinAddProgress{Err: err}:
+				}
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case progress <- data:
+			default:
+			}
+		}
+	}()
+
+	return progress, nil
 }
 
 type PinLs struct {

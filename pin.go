@@ -18,7 +18,7 @@ type PinStatus struct {
 	RequestID string        `json:"requestid"`
 	Status    RequestStatus `json:"status"`
 	Created   time.Time     `json:"created"`
-	Delegates []string      `json:"delegates"`
+	Delegates []string      `json:"delegates,omitempty"`
 	Info      interface{}   `json:"info,omitempty"`
 
 	Pin Pin `json:"pin"`
@@ -28,6 +28,6 @@ type PinStatus struct {
 type Pin struct {
 	CID     string      `json:"cid"`
 	Name    string      `json:"name"`
-	Origins []string    `json:"origins"`
+	Origins []string    `json:"origins,omitempty"`
 	Meta    interface{} `json:"meta,omitempty"`
 }

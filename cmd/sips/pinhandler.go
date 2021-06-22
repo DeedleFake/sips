@@ -15,8 +15,9 @@ import (
 )
 
 type PinHandler struct {
-	IPFS *ipfsapi.Client
-	DB   *storm.DB
+	Queue *PinQueue
+	IPFS  *ipfsapi.Client
+	DB    *storm.DB
 }
 
 func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinStatus, error) {
@@ -46,11 +47,12 @@ func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinSt
 	for _, pin := range dbpins {
 		pins = append(pins, sips.PinStatus{
 			RequestID: strconv.FormatUint(pin.ID, 16),
-			Status:    sips.Pinned, // TODO: Handle this properly.
+			Status:    pin.Status,
 			Created:   pin.Created,
 			Pin: sips.Pin{
-				CID:  pin.CID,
-				Name: pin.Name,
+				CID:     pin.CID,
+				Name:    pin.Name,
+				Origins: pin.Origins,
 			},
 		})
 	}
@@ -73,23 +75,20 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 	dbpin := dbs.Pin{
 		Created: time.Now(),
 		User:    user.ID,
+		Status:  sips.Queued,
 		Name:    pin.Name,
 		CID:     pin.CID,
+		Origins: pin.Origins,
 	}
 	err = tx.Save(&dbpin)
 	if err != nil {
 		return sips.PinStatus{}, log.Errorf("save pin %q: %w", pin.CID, err)
 	}
 
-	if len(pin.Origins) != 0 {
-		for _, origin := range pin.Origins {
-			go h.IPFS.SwarmConnect(ctx, origin)
-		}
-	}
-
-	_, err = h.IPFS.PinAdd(ctx, pin.CID)
-	if err != nil {
-		return sips.PinStatus{}, log.Errorf("add pin %v: %w", pin.CID, err)
+	select {
+	case <-ctx.Done():
+		return sips.PinStatus{}, log.Errorf("queue add %v: %w", pin.CID, err)
+	case h.Queue.Add() <- dbpin:
 	}
 
 	id, err := h.IPFS.ID(ctx)
@@ -100,7 +99,7 @@ func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, e
 
 	return sips.PinStatus{
 		RequestID: strconv.FormatUint(dbpin.ID, 16),
-		Status:    sips.Pinning,
+		Status:    dbpin.Status,
 		Created:   dbpin.Created,
 		Delegates: id.Addresses,
 		Pin:       pin,
@@ -175,28 +174,25 @@ func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pi
 		}
 		return sips.PinStatus{}, err
 	}
-	oldCID := dbpin.CID
 
 	if dbpin.User != user.ID {
 		return sips.PinStatus{}, NotFound(log.Errorf("find pin %v: %w", requestID, storm.ErrNotFound))
 	}
 
+	oldpin := dbpin
+	dbpin.Status = sips.Queued
 	dbpin.Name = pin.Name
 	dbpin.CID = pin.CID
+	dbpin.Origins = pin.Origins
 	err = tx.Update(&dbpin)
 	if err != nil {
 		return sips.PinStatus{}, log.Errorf("update pin %v: %w", requestID, err)
 	}
 
-	if len(pin.Origins) != 0 {
-		for _, origin := range pin.Origins {
-			go h.IPFS.SwarmConnect(ctx, origin)
-		}
-	}
-
-	_, err = h.IPFS.PinUpdate(ctx, oldCID, pin.CID, false)
-	if err != nil {
-		return sips.PinStatus{}, log.Errorf("add pin %v: %w", pin.CID, err)
+	select {
+	case <-ctx.Done():
+		return sips.PinStatus{}, log.Errorf("queue update %v: %w", requestID, ctx.Err())
+	case h.Queue.Update() <- [2]dbs.Pin{oldpin, dbpin}:
 	}
 
 	id, err := h.IPFS.ID(ctx)
@@ -207,7 +203,7 @@ func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pi
 
 	return sips.PinStatus{
 		RequestID: requestID,
-		Status:    sips.Pinning,
+		Status:    dbpin.Status,
 		Created:   dbpin.Created,
 		Delegates: id.Addresses,
 		Pin: sips.Pin{
@@ -223,7 +219,7 @@ func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 		return BadRequest(log.Errorf("parse request ID %q: %w", requestID, err))
 	}
 
-	tx, err := h.DB.Begin(true)
+	tx, err := h.DB.Begin(false)
 	if err != nil {
 		return log.Errorf("begin transaction: %w", err)
 	}
@@ -248,17 +244,13 @@ func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 		return NotFound(log.Errorf("find pin %v: %w", requestID, storm.ErrNotFound))
 	}
 
-	err = tx.DeleteStruct(&pin)
-	if err != nil {
-		return log.Errorf("delete pin %v: %w", requestID, err)
+	select {
+	case <-ctx.Done():
+		return log.Errorf("queue delete %v: %w", requestID, ctx.Err())
+	case h.Queue.Delete() <- pin:
 	}
 
-	_, err = h.IPFS.PinRm(ctx, pin.CID)
-	if err != nil {
-		return log.Errorf("unpin %v: %w", pin.CID, err)
-	}
-
-	return tx.Commit()
+	return nil
 }
 
 func auth(ctx context.Context, db storm.Node) (user dbs.User, err error) {

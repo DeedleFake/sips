@@ -55,6 +55,7 @@ func run(ctx context.Context) error {
 	log.Infof("Database opened at %q", dbpath)
 
 	if *domigration {
+		log.Infof("Running migrations...")
 		err = migrate.Run(db)
 		if err != nil {
 			return fmt.Errorf("migrate database: %w", err)

@@ -43,6 +43,7 @@ func init() {
 		tokensCmd,
 		usersCmd,
 		pinsCmd,
+		migrateCmd,
 	)
 }
 

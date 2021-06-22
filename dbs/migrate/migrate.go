@@ -1,3 +1,6 @@
+// Package migrate implements very simple database migrations.
+//
+// Migrations are stored by timestamp and are run in ascending order.
 package migrate
 
 import (
@@ -14,6 +17,9 @@ const (
 	VersionKey = "version"
 )
 
+// A Migration is a function that is run in order to implement changes
+// in the database. Each migration is atomic, and all of the changes
+// made will be rolled back in the event of an error.
 type Migration func(storm.Node) error
 
 var migrations []migrationRegistration
@@ -56,6 +62,7 @@ func run(db *storm.DB, migration migrationRegistration) error {
 	return tx.Commit()
 }
 
+// Run runs migrations against a database.
 func Run(db *storm.DB) error {
 	var current time.Time
 	err := db.Get(Bucket, VersionKey, &current)

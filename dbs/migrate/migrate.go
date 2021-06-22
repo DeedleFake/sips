@@ -62,16 +62,27 @@ func run(db *storm.DB, migration migrationRegistration) error {
 	return tx.Commit()
 }
 
-// Run runs migrations against a database.
-func Run(db *storm.DB) error {
+// CurrentVersion returns the current schema version stored in the
+// database. If no current version information is found, the returned
+// error is nil and the returned boolean is false.
+func CurrentVersion(db storm.Node) (time.Time, bool, error) {
 	var current time.Time
 	err := db.Get(Bucket, VersionKey, &current)
 	if (err != nil) && !errors.Is(err, storm.ErrNotFound) {
-		return fmt.Errorf("get current schema version: %w", err)
+		return time.Time{}, false, fmt.Errorf("get: %w", err)
+	}
+	return current, err == nil, nil
+}
+
+// Run runs migrations against a database.
+func Run(db *storm.DB) error {
+	current, found, err := CurrentVersion(db)
+	if err != nil {
+		return fmt.Errorf("current version: %w", err)
 	}
 
 	var start int
-	if err != nil {
+	if found {
 		start = sort.Search(len(migrations), func(i int) bool {
 			return current.Unix() <= migrations[i].V.Unix()
 		})

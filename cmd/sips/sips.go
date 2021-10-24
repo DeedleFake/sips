@@ -14,9 +14,9 @@ import (
 	"time"
 
 	"github.com/DeedleFake/sips"
-	"github.com/DeedleFake/sips/dbs"
-	"github.com/DeedleFake/sips/dbs/migrate"
 	"github.com/DeedleFake/sips/internal/cli"
+	"github.com/DeedleFake/sips/internal/dbs"
+	"github.com/DeedleFake/sips/internal/dbs/migrate"
 	"github.com/DeedleFake/sips/internal/ipfsapi"
 	"github.com/DeedleFake/sips/internal/log"
 )

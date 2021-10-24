@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/DeedleFake/sips"
-	"github.com/DeedleFake/sips/dbs"
+	"github.com/DeedleFake/sips/internal/dbs"
 	"github.com/spf13/cobra"
 )
 

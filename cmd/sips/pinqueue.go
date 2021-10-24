@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 
 	"github.com/DeedleFake/sips"
-	"github.com/DeedleFake/sips/dbs"
+	"github.com/DeedleFake/sips/internal/dbs"
 	"github.com/DeedleFake/sips/internal/ipfsapi"
 	"github.com/DeedleFake/sips/internal/log"
 	"github.com/asdine/storm"

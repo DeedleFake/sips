@@ -1,0 +1,48 @@
+Pin:
+	+-------------+------------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	|    Field    |    Type    | Unique | Optional | Nillable | Default | UpdateDefault | Immutable |          StructTag           | Validators |
+	+-------------+------------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	| id          | int        | false  | false    | false    | false   | false         | false     | json:"id,omitempty"          |          0 |
+	| create_time | time.Time  | false  | false    | false    | true    | false         | true      | json:"create_time,omitempty" |          0 |
+	| update_time | time.Time  | false  | false    | false    | true    | true          | true      | json:"update_time,omitempty" |          0 |
+	| Status      | pin.Status | false  | false    | false    | false   | false         | false     | json:"Status,omitempty"      |          0 |
+	| Name        | string     | false  | false    | false    | false   | false         | false     | json:"Name,omitempty"        |          1 |
+	| Origins     | []string   | false  | true     | false    | false   | false         | false     | json:"Origins,omitempty"     |          0 |
+	+-------------+------------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	+------+------+---------+---------+----------+--------+----------+
+	| Edge | Type | Inverse | BackRef | Relation | Unique | Optional |
+	+------+------+---------+---------+----------+--------+----------+
+	| User | User | true    | Pins    | M2O      | true   | true     |
+	+------+------+---------+---------+----------+--------+----------+
+	
+Token:
+	+-------------+-----------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	|    Field    |   Type    | Unique | Optional | Nillable | Default | UpdateDefault | Immutable |          StructTag           | Validators |
+	+-------------+-----------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	| id          | int       | false  | false    | false    | false   | false         | false     | json:"id,omitempty"          |          0 |
+	| create_time | time.Time | false  | false    | false    | true    | false         | true      | json:"create_time,omitempty" |          0 |
+	| update_time | time.Time | false  | false    | false    | true    | true          | true      | json:"update_time,omitempty" |          0 |
+	| Token       | string    | true   | false    | false    | false   | false         | true      | json:"Token,omitempty"       |          1 |
+	+-------------+-----------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	+------+------+---------+---------+----------+--------+----------+
+	| Edge | Type | Inverse | BackRef | Relation | Unique | Optional |
+	+------+------+---------+---------+----------+--------+----------+
+	| User | User | true    | Tokens  | M2O      | true   | true     |
+	+------+------+---------+---------+----------+--------+----------+
+	
+User:
+	+-------------+-----------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	|    Field    |   Type    | Unique | Optional | Nillable | Default | UpdateDefault | Immutable |          StructTag           | Validators |
+	+-------------+-----------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	| id          | int       | false  | false    | false    | false   | false         | false     | json:"id,omitempty"          |          0 |
+	| create_time | time.Time | false  | false    | false    | true    | false         | true      | json:"create_time,omitempty" |          0 |
+	| update_time | time.Time | false  | false    | false    | true    | true          | true      | json:"update_time,omitempty" |          0 |
+	| Name        | string    | true   | false    | false    | false   | false         | false     | json:"Name,omitempty"        |          1 |
+	+-------------+-----------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
+	+--------+-------+---------+---------+----------+--------+----------+
+	|  Edge  | Type  | Inverse | BackRef | Relation | Unique | Optional |
+	+--------+-------+---------+---------+----------+--------+----------+
+	| Tokens | Token | false   |         | O2M      | false  | true     |
+	| Pins   | Pin   | false   |         | O2M      | false  | true     |
+	+--------+-------+---------+---------+----------+--------+----------+
+	

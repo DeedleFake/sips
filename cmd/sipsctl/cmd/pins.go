@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/db"
@@ -168,9 +169,14 @@ func init() {
 			}
 			defer tx.Rollback()
 
-			for _, id := range args {
-				err := tx.Pin.Update().
-					Where(pin.ID(id)).
+			for _, strid := range args {
+				id, err := strconv.ParseInt(strid, 10, 0)
+				if err != nil {
+					return fmt.Errorf("parse pin ID %q: %w", strid, err)
+				}
+
+				err = tx.Pin.Update().
+					Where(pin.ID(int(id))).
 					SetStatus(sips.RequestStatus(setstatusFlags.Status)).
 					Exec(ctx)
 				if err != nil {

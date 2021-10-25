@@ -5,9 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"time"
 
-	dbs "github.com/DeedleFake/sips/internal/bolt"
+	"github.com/DeedleFake/sips/db"
+	"github.com/DeedleFake/sips/ent/token"
+	"github.com/DeedleFake/sips/ent/user"
 	"github.com/spf13/cobra"
 )
 
@@ -29,22 +30,25 @@ func init() {
 		Use:   "add",
 		Short: "generate a new auth token",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			tx, err := db.Begin(true)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
 				return fmt.Errorf("begin transaction: %w", err)
 			}
 			defer tx.Rollback()
 
-			var user dbs.User
-			err = tx.One("Name", tokenFlags.User, &user)
+			u, err := tx.User.Query().
+				Where(user.Name(tokenFlags.User)).
+				Only(ctx)
 			if err != nil {
-				return fmt.Errorf("get user %q: %v", tokenFlags.User, err)
+				return fmt.Errorf("find user: %w", err)
 			}
 
 			var buf [256]byte
@@ -54,19 +58,22 @@ func init() {
 			}
 			sum := sha256.Sum256(buf[:])
 
-			tok := dbs.Token{
-				ID:      base64.URLEncoding.EncodeToString(sum[:]),
-				Created: time.Now(),
-				User:    user.ID,
-			}
-			err = tx.Save(&tok)
+			tok, err := tx.Token.Create().
+				SetUser(u).
+				SetToken(base64.URLEncoding.EncodeToString(sum[:])).
+				Save(ctx)
 			if err != nil {
-				return fmt.Errorf("save token to database: %v", err)
+				return fmt.Errorf("create token: %w", err)
 			}
 
-			fmt.Println(tok.ID)
+			fmt.Println(tok.Token)
 
-			return tx.Commit()
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("commit transaction: %w", err)
+			}
+
+			return nil
 		},
 	}
 	addCmd.MarkPersistentFlagRequired("user")
@@ -75,36 +82,40 @@ func init() {
 		Use:   "list",
 		Short: "list all tokens",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			// TODO: Only show tokens for a given user if the user flag was
-			// provided.
-
-			var tokens []dbs.Token
-			err = db.All(&tokens)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
-				return fmt.Errorf("get tokens: %w", err)
+				return fmt.Errorf("begin transaction: %w", err)
+			}
+			defer tx.Rollback()
+
+			q := tx.Token.Query()
+			if tokenFlags.User != "" {
+				q = q.Where(token.HasUserWith(user.Name(tokenFlags.User)))
+			}
+			toks, err := q.WithUser().All(ctx)
+			if err != nil {
+				return fmt.Errorf("list tokens: %w", err)
 			}
 
-			userCache := make(map[uint64]string)
-			for _, token := range tokens {
-				user, ok := userCache[token.User]
-				if !ok {
-					var u dbs.User
-					err := db.One("ID", token.User, &u)
-					if err != nil {
-						return fmt.Errorf("get user %v: %w", token.User, err)
-					}
-
-					userCache[token.User] = u.Name
-					user = u.Name
+			for _, tok := range toks {
+				userName := "<no user>"
+				if tok.Edges.User != nil {
+					userName = tok.Edges.User.Name
 				}
+				fmt.Printf("%v %v\n", tok.Token, userName)
+			}
 
-				fmt.Printf("%v %v\n", token.ID, user)
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("commit transaction: %w", err)
 			}
 
 			return nil
@@ -116,29 +127,35 @@ func init() {
 		Short: "remove a token from the database, thus invalidating it",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			tx, err := db.Begin(true)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
 				return fmt.Errorf("begin transaction: %w", err)
 			}
 			defer tx.Rollback()
 
-			for _, arg := range args {
-				token := dbs.Token{
-					ID: arg,
-				}
-				err = tx.DeleteStruct(&token)
-				if err != nil {
-					return fmt.Errorf("remove token: %w", err)
-				}
+			n, err := tx.Token.Delete().
+				Where(token.TokenIn(args...)).
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("delete tokens: %w", err)
 			}
 
-			return tx.Commit()
+			fmt.Printf("Deleted %v tokens\n", n)
+
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("commit transaction: %w", err)
+			}
+
+			return nil
 		},
 	}
 

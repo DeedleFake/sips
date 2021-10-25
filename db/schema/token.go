@@ -10,7 +10,7 @@ import (
 	"entgo.io/ent/schema/mixin"
 )
 
-var TokenRegexp = regexp.MustCompile(`^[ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_=]{43,44}$`)
+var TokenRegexp = regexp.MustCompile(`^[A-Za-z0-9-_=]{43,44}$`)
 
 type Token struct {
 	ent.Schema

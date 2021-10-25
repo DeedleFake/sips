@@ -22,6 +22,8 @@ const (
 	FieldStatus = "status"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
+	// FieldCID holds the string denoting the cid field in the database.
+	FieldCID = "cid"
 	// FieldOrigins holds the string denoting the origins field in the database.
 	FieldOrigins = "origins"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -44,6 +46,7 @@ var Columns = []string{
 	FieldUpdateTime,
 	FieldStatus,
 	FieldName,
+	FieldCID,
 	FieldOrigins,
 }
 
@@ -77,7 +80,11 @@ var (
 	UpdateDefaultUpdateTime func() time.Time
 	// NameValidator is a validator for the "Name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// CIDValidator is a validator for the "CID" field. It is called by the builders before save.
+	CIDValidator func(string) error
 )
+
+const DefaultStatus sips.RequestStatus = "queued"
 
 // StatusValidator is a validator for the "Status" field enum values. It is called by the builders before save.
 func StatusValidator(_status sips.RequestStatus) error {

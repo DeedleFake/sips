@@ -41,6 +41,7 @@ type PinMutation struct {
 	update_time   *time.Time
 	_Status       *sips.RequestStatus
 	_Name         *string
+	_CID          *string
 	_Origins      *[]string
 	clearedFields map[string]struct{}
 	_User         *int
@@ -273,6 +274,42 @@ func (m *PinMutation) ResetName() {
 	m._Name = nil
 }
 
+// SetCID sets the "CID" field.
+func (m *PinMutation) SetCID(s string) {
+	m._CID = &s
+}
+
+// CID returns the value of the "CID" field in the mutation.
+func (m *PinMutation) CID() (r string, exists bool) {
+	v := m._CID
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCID returns the old "CID" field's value of the Pin entity.
+// If the Pin object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *PinMutation) OldCID(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, fmt.Errorf("OldCID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, fmt.Errorf("OldCID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCID: %w", err)
+	}
+	return oldValue.CID, nil
+}
+
+// ResetCID resets all changes to the "CID" field.
+func (m *PinMutation) ResetCID() {
+	m._CID = nil
+}
+
 // SetOrigins sets the "Origins" field.
 func (m *PinMutation) SetOrigins(s []string) {
 	m._Origins = &s
@@ -380,7 +417,7 @@ func (m *PinMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *PinMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.create_time != nil {
 		fields = append(fields, pin.FieldCreateTime)
 	}
@@ -392,6 +429,9 @@ func (m *PinMutation) Fields() []string {
 	}
 	if m._Name != nil {
 		fields = append(fields, pin.FieldName)
+	}
+	if m._CID != nil {
+		fields = append(fields, pin.FieldCID)
 	}
 	if m._Origins != nil {
 		fields = append(fields, pin.FieldOrigins)
@@ -412,6 +452,8 @@ func (m *PinMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case pin.FieldName:
 		return m.Name()
+	case pin.FieldCID:
+		return m.CID()
 	case pin.FieldOrigins:
 		return m.Origins()
 	}
@@ -431,6 +473,8 @@ func (m *PinMutation) OldField(ctx context.Context, name string) (ent.Value, err
 		return m.OldStatus(ctx)
 	case pin.FieldName:
 		return m.OldName(ctx)
+	case pin.FieldCID:
+		return m.OldCID(ctx)
 	case pin.FieldOrigins:
 		return m.OldOrigins(ctx)
 	}
@@ -469,6 +513,13 @@ func (m *PinMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetName(v)
+		return nil
+	case pin.FieldCID:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCID(v)
 		return nil
 	case pin.FieldOrigins:
 		v, ok := value.([]string)
@@ -546,6 +597,9 @@ func (m *PinMutation) ResetField(name string) error {
 		return nil
 	case pin.FieldName:
 		m.ResetName()
+		return nil
+	case pin.FieldCID:
+		m.ResetCID()
 		return nil
 	case pin.FieldOrigins:
 		m.ResetOrigins()

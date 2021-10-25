@@ -5,8 +5,9 @@ Pin:
 	| id          | int                | false  | false    | false    | false   | false         | false     | json:"id,omitempty"          |          0 |
 	| create_time | time.Time          | false  | false    | false    | true    | false         | true      | json:"create_time,omitempty" |          0 |
 	| update_time | time.Time          | false  | false    | false    | true    | true          | true      | json:"update_time,omitempty" |          0 |
-	| Status      | sips.RequestStatus | false  | false    | false    | false   | false         | false     | json:"Status,omitempty"      |          0 |
+	| Status      | sips.RequestStatus | false  | false    | false    | true    | false         | false     | json:"Status,omitempty"      |          0 |
 	| Name        | string             | false  | false    | false    | false   | false         | false     | json:"Name,omitempty"        |          1 |
+	| CID         | string             | false  | false    | false    | false   | false         | false     | json:"CID,omitempty"         |          1 |
 	| Origins     | []string           | false  | true     | false    | false   | false         | false     | json:"Origins,omitempty"     |          0 |
 	+-------------+--------------------+--------+----------+----------+---------+---------------+-----------+------------------------------+------------+
 	+------+------+---------+---------+----------+--------+----------+

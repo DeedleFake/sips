@@ -27,6 +27,8 @@ type Pin struct {
 	Status sips.RequestStatus `json:"Status,omitempty"`
 	// Name holds the value of the "Name" field.
 	Name string `json:"Name,omitempty"`
+	// CID holds the value of the "CID" field.
+	CID string `json:"CID,omitempty"`
 	// Origins holds the value of the "Origins" field.
 	Origins []string `json:"Origins,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
@@ -67,7 +69,7 @@ func (*Pin) scanValues(columns []string) ([]interface{}, error) {
 			values[i] = new([]byte)
 		case pin.FieldID:
 			values[i] = new(sql.NullInt64)
-		case pin.FieldStatus, pin.FieldName:
+		case pin.FieldStatus, pin.FieldName, pin.FieldCID:
 			values[i] = new(sql.NullString)
 		case pin.FieldCreateTime, pin.FieldUpdateTime:
 			values[i] = new(sql.NullTime)
@@ -117,6 +119,12 @@ func (pi *Pin) assignValues(columns []string, values []interface{}) error {
 				return fmt.Errorf("unexpected type %T for field Name", values[i])
 			} else if value.Valid {
 				pi.Name = value.String
+			}
+		case pin.FieldCID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field CID", values[i])
+			} else if value.Valid {
+				pi.CID = value.String
 			}
 		case pin.FieldOrigins:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -174,6 +182,8 @@ func (pi *Pin) String() string {
 	builder.WriteString(fmt.Sprintf("%v", pi.Status))
 	builder.WriteString(", Name=")
 	builder.WriteString(pi.Name)
+	builder.WriteString(", CID=")
+	builder.WriteString(pi.CID)
 	builder.WriteString(", Origins=")
 	builder.WriteString(fmt.Sprintf("%v", pi.Origins))
 	builder.WriteByte(')')

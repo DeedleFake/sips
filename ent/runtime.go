@@ -34,6 +34,10 @@ func init() {
 	pinDescName := pinFields[1].Descriptor()
 	// pin.NameValidator is a validator for the "Name" field. It is called by the builders before save.
 	pin.NameValidator = pinDescName.Validators[0].(func(string) error)
+	// pinDescCID is the schema descriptor for CID field.
+	pinDescCID := pinFields[2].Descriptor()
+	// pin.CIDValidator is a validator for the "CID" field. It is called by the builders before save.
+	pin.CIDValidator = pinDescCID.Validators[0].(func(string) error)
 	tokenMixin := schema.Token{}.Mixin()
 	tokenMixinFields0 := tokenMixin[0].Fields()
 	_ = tokenMixinFields0

@@ -58,9 +58,23 @@ func (pc *PinCreate) SetStatus(ss sips.RequestStatus) *PinCreate {
 	return pc
 }
 
+// SetNillableStatus sets the "Status" field if the given value is not nil.
+func (pc *PinCreate) SetNillableStatus(ss *sips.RequestStatus) *PinCreate {
+	if ss != nil {
+		pc.SetStatus(*ss)
+	}
+	return pc
+}
+
 // SetName sets the "Name" field.
 func (pc *PinCreate) SetName(s string) *PinCreate {
 	pc.mutation.SetName(s)
+	return pc
+}
+
+// SetCID sets the "CID" field.
+func (pc *PinCreate) SetCID(s string) *PinCreate {
+	pc.mutation.SetCID(s)
 	return pc
 }
 
@@ -168,6 +182,10 @@ func (pc *PinCreate) defaults() {
 		v := pin.DefaultUpdateTime()
 		pc.mutation.SetUpdateTime(v)
 	}
+	if _, ok := pc.mutation.Status(); !ok {
+		v := pin.DefaultStatus
+		pc.mutation.SetStatus(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -192,6 +210,14 @@ func (pc *PinCreate) check() error {
 	if v, ok := pc.mutation.Name(); ok {
 		if err := pin.NameValidator(v); err != nil {
 			return &ValidationError{Name: "Name", err: fmt.Errorf(`ent: validator failed for field "Name": %w`, err)}
+		}
+	}
+	if _, ok := pc.mutation.CID(); !ok {
+		return &ValidationError{Name: "CID", err: errors.New(`ent: missing required field "CID"`)}
+	}
+	if v, ok := pc.mutation.CID(); ok {
+		if err := pin.CIDValidator(v); err != nil {
+			return &ValidationError{Name: "CID", err: fmt.Errorf(`ent: validator failed for field "CID": %w`, err)}
 		}
 	}
 	return nil
@@ -253,6 +279,14 @@ func (pc *PinCreate) createSpec() (*Pin, *sqlgraph.CreateSpec) {
 			Column: pin.FieldName,
 		})
 		_node.Name = value
+	}
+	if value, ok := pc.mutation.CID(); ok {
+		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: pin.FieldCID,
+		})
+		_node.CID = value
 	}
 	if value, ok := pc.mutation.Origins(); ok {
 		_spec.Fields = append(_spec.Fields, &sqlgraph.FieldSpec{
@@ -384,6 +418,18 @@ func (u *PinUpsert) UpdateName() *PinUpsert {
 	return u
 }
 
+// SetCID sets the "CID" field.
+func (u *PinUpsert) SetCID(v string) *PinUpsert {
+	u.Set(pin.FieldCID, v)
+	return u
+}
+
+// UpdateCID sets the "CID" field to the value that was provided on create.
+func (u *PinUpsert) UpdateCID() *PinUpsert {
+	u.SetExcluded(pin.FieldCID)
+	return u
+}
+
 // SetOrigins sets the "Origins" field.
 func (u *PinUpsert) SetOrigins(v []string) *PinUpsert {
 	u.Set(pin.FieldOrigins, v)
@@ -497,6 +543,20 @@ func (u *PinUpsertOne) SetName(v string) *PinUpsertOne {
 func (u *PinUpsertOne) UpdateName() *PinUpsertOne {
 	return u.Update(func(s *PinUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetCID sets the "CID" field.
+func (u *PinUpsertOne) SetCID(v string) *PinUpsertOne {
+	return u.Update(func(s *PinUpsert) {
+		s.SetCID(v)
+	})
+}
+
+// UpdateCID sets the "CID" field to the value that was provided on create.
+func (u *PinUpsertOne) UpdateCID() *PinUpsertOne {
+	return u.Update(func(s *PinUpsert) {
+		s.UpdateCID()
 	})
 }
 
@@ -778,6 +838,20 @@ func (u *PinUpsertBulk) SetName(v string) *PinUpsertBulk {
 func (u *PinUpsertBulk) UpdateName() *PinUpsertBulk {
 	return u.Update(func(s *PinUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetCID sets the "CID" field.
+func (u *PinUpsertBulk) SetCID(v string) *PinUpsertBulk {
+	return u.Update(func(s *PinUpsert) {
+		s.SetCID(v)
+	})
+}
+
+// UpdateCID sets the "CID" field to the value that was provided on create.
+func (u *PinUpsertBulk) UpdateCID() *PinUpsertBulk {
+	return u.Update(func(s *PinUpsert) {
+		s.UpdateCID()
 	})
 }
 

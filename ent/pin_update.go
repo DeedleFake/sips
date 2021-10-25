@@ -34,9 +34,23 @@ func (pu *PinUpdate) SetStatus(ss sips.RequestStatus) *PinUpdate {
 	return pu
 }
 
+// SetNillableStatus sets the "Status" field if the given value is not nil.
+func (pu *PinUpdate) SetNillableStatus(ss *sips.RequestStatus) *PinUpdate {
+	if ss != nil {
+		pu.SetStatus(*ss)
+	}
+	return pu
+}
+
 // SetName sets the "Name" field.
 func (pu *PinUpdate) SetName(s string) *PinUpdate {
 	pu.mutation.SetName(s)
+	return pu
+}
+
+// SetCID sets the "CID" field.
+func (pu *PinUpdate) SetCID(s string) *PinUpdate {
+	pu.mutation.SetCID(s)
 	return pu
 }
 
@@ -163,6 +177,11 @@ func (pu *PinUpdate) check() error {
 			return &ValidationError{Name: "Name", err: fmt.Errorf("ent: validator failed for field \"Name\": %w", err)}
 		}
 	}
+	if v, ok := pu.mutation.CID(); ok {
+		if err := pin.CIDValidator(v); err != nil {
+			return &ValidationError{Name: "CID", err: fmt.Errorf("ent: validator failed for field \"CID\": %w", err)}
+		}
+	}
 	return nil
 }
 
@@ -203,6 +222,13 @@ func (pu *PinUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Type:   field.TypeString,
 			Value:  value,
 			Column: pin.FieldName,
+		})
+	}
+	if value, ok := pu.mutation.CID(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: pin.FieldCID,
 		})
 	}
 	if value, ok := pu.mutation.Origins(); ok {
@@ -278,9 +304,23 @@ func (puo *PinUpdateOne) SetStatus(ss sips.RequestStatus) *PinUpdateOne {
 	return puo
 }
 
+// SetNillableStatus sets the "Status" field if the given value is not nil.
+func (puo *PinUpdateOne) SetNillableStatus(ss *sips.RequestStatus) *PinUpdateOne {
+	if ss != nil {
+		puo.SetStatus(*ss)
+	}
+	return puo
+}
+
 // SetName sets the "Name" field.
 func (puo *PinUpdateOne) SetName(s string) *PinUpdateOne {
 	puo.mutation.SetName(s)
+	return puo
+}
+
+// SetCID sets the "CID" field.
+func (puo *PinUpdateOne) SetCID(s string) *PinUpdateOne {
+	puo.mutation.SetCID(s)
 	return puo
 }
 
@@ -414,6 +454,11 @@ func (puo *PinUpdateOne) check() error {
 			return &ValidationError{Name: "Name", err: fmt.Errorf("ent: validator failed for field \"Name\": %w", err)}
 		}
 	}
+	if v, ok := puo.mutation.CID(); ok {
+		if err := pin.CIDValidator(v); err != nil {
+			return &ValidationError{Name: "CID", err: fmt.Errorf("ent: validator failed for field \"CID\": %w", err)}
+		}
+	}
 	return nil
 }
 
@@ -471,6 +516,13 @@ func (puo *PinUpdateOne) sqlSave(ctx context.Context) (_node *Pin, err error) {
 			Type:   field.TypeString,
 			Value:  value,
 			Column: pin.FieldName,
+		})
+	}
+	if value, ok := puo.mutation.CID(); ok {
+		_spec.Fields.Set = append(_spec.Fields.Set, &sqlgraph.FieldSpec{
+			Type:   field.TypeString,
+			Value:  value,
+			Column: pin.FieldCID,
 		})
 	}
 	if value, ok := puo.mutation.Origins(); ok {

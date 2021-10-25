@@ -115,6 +115,13 @@ func Name(v string) predicate.Pin {
 	})
 }
 
+// CID applies equality check predicate on the "CID" field. It's identical to CIDEQ.
+func CID(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldCID), v))
+	})
+}
+
 // CreateTimeEQ applies the EQ predicate on the "create_time" field.
 func CreateTimeEQ(v time.Time) predicate.Pin {
 	return predicate.Pin(func(s *sql.Selector) {
@@ -425,6 +432,117 @@ func NameEqualFold(v string) predicate.Pin {
 func NameContainsFold(v string) predicate.Pin {
 	return predicate.Pin(func(s *sql.Selector) {
 		s.Where(sql.ContainsFold(s.C(FieldName), v))
+	})
+}
+
+// CIDEQ applies the EQ predicate on the "CID" field.
+func CIDEQ(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.EQ(s.C(FieldCID), v))
+	})
+}
+
+// CIDNEQ applies the NEQ predicate on the "CID" field.
+func CIDNEQ(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.NEQ(s.C(FieldCID), v))
+	})
+}
+
+// CIDIn applies the In predicate on the "CID" field.
+func CIDIn(vs ...string) predicate.Pin {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.Pin(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.In(s.C(FieldCID), v...))
+	})
+}
+
+// CIDNotIn applies the NotIn predicate on the "CID" field.
+func CIDNotIn(vs ...string) predicate.Pin {
+	v := make([]interface{}, len(vs))
+	for i := range v {
+		v[i] = vs[i]
+	}
+	return predicate.Pin(func(s *sql.Selector) {
+		// if not arguments were provided, append the FALSE constants,
+		// since we can't apply "IN ()". This will make this predicate falsy.
+		if len(v) == 0 {
+			s.Where(sql.False())
+			return
+		}
+		s.Where(sql.NotIn(s.C(FieldCID), v...))
+	})
+}
+
+// CIDGT applies the GT predicate on the "CID" field.
+func CIDGT(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.GT(s.C(FieldCID), v))
+	})
+}
+
+// CIDGTE applies the GTE predicate on the "CID" field.
+func CIDGTE(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.GTE(s.C(FieldCID), v))
+	})
+}
+
+// CIDLT applies the LT predicate on the "CID" field.
+func CIDLT(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.LT(s.C(FieldCID), v))
+	})
+}
+
+// CIDLTE applies the LTE predicate on the "CID" field.
+func CIDLTE(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.LTE(s.C(FieldCID), v))
+	})
+}
+
+// CIDContains applies the Contains predicate on the "CID" field.
+func CIDContains(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.Contains(s.C(FieldCID), v))
+	})
+}
+
+// CIDHasPrefix applies the HasPrefix predicate on the "CID" field.
+func CIDHasPrefix(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.HasPrefix(s.C(FieldCID), v))
+	})
+}
+
+// CIDHasSuffix applies the HasSuffix predicate on the "CID" field.
+func CIDHasSuffix(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.HasSuffix(s.C(FieldCID), v))
+	})
+}
+
+// CIDEqualFold applies the EqualFold predicate on the "CID" field.
+func CIDEqualFold(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.EqualFold(s.C(FieldCID), v))
+	})
+}
+
+// CIDContainsFold applies the ContainsFold predicate on the "CID" field.
+func CIDContainsFold(v string) predicate.Pin {
+	return predicate.Pin(func(s *sql.Selector) {
+		s.Where(sql.ContainsFold(s.C(FieldCID), v))
 	})
 }
 

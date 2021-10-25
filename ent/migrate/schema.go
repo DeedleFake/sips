@@ -13,8 +13,9 @@ var (
 		{Name: "id", Type: field.TypeInt, Increment: true},
 		{Name: "create_time", Type: field.TypeTime},
 		{Name: "update_time", Type: field.TypeTime},
-		{Name: "status", Type: field.TypeEnum, Enums: []string{"queued", "pinning", "pinned", "failed"}},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"queued", "pinning", "pinned", "failed"}, Default: "queued"},
 		{Name: "name", Type: field.TypeString},
+		{Name: "cid", Type: field.TypeString},
 		{Name: "origins", Type: field.TypeJSON, Nullable: true},
 		{Name: "user_pins", Type: field.TypeInt, Nullable: true},
 	}
@@ -26,7 +27,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "pins_users_Pins",
-				Columns:    []*schema.Column{PinsColumns[6]},
+				Columns:    []*schema.Column{PinsColumns[7]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.SetNull,
 			},

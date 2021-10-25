@@ -40,8 +40,8 @@ func MigrateFromBolt(ctx context.Context, entc *ent.Client, bolt *storm.DB) erro
 		}
 		for _, pin := range pins {
 			_, err := tx.Pin.Create().
-				SetCreateTime(pin.Created).
 				SetUser(u).
+				SetCreateTime(pin.Created).
 				SetName(pin.Name).
 				SetStatus(pin.Status).
 				SetCID(pin.CID).
@@ -59,6 +59,7 @@ func MigrateFromBolt(ctx context.Context, entc *ent.Client, bolt *storm.DB) erro
 		}
 		for _, token := range tokens {
 			_, err := tx.Token.Create().
+				SetUser(u).
 				SetCreateTime(token.Created).
 				SetToken(token.ID).
 				Save(ctx)

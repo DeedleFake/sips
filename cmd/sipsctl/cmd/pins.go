@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/DeedleFake/sips"
-	dbs "github.com/DeedleFake/sips/internal/bolt"
+	"github.com/DeedleFake/sips/db"
+	"github.com/DeedleFake/sips/ent/pin"
+	"github.com/DeedleFake/sips/ent/user"
 	"github.com/spf13/cobra"
 )
 
@@ -28,39 +29,44 @@ func init() {
 		Short: "add a pin to just the database",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			tx, err := db.Begin(true)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
 				return fmt.Errorf("begin transaction: %w", err)
 			}
 			defer tx.Rollback()
 
-			var user dbs.User
-			err = tx.One("Name", addFlags.User, &user)
+			u, err := tx.User.Query().
+				Where(user.Name(addFlags.User)).
+				Only(ctx)
 			if err != nil {
 				return fmt.Errorf("find user: %w", err)
 			}
 
-			pin := dbs.Pin{
-				Created: time.Now(),
-				User:    user.ID,
-				Name:    addFlags.Name,
-				CID:     args[0],
-				Status:  sips.Queued,
-			}
-			err = tx.Save(&pin)
+			pin, err := tx.Pin.Create().
+				SetUser(u).
+				SetName(addFlags.Name).
+				SetCID(args[0]).
+				Save(ctx)
 			if err != nil {
-				return fmt.Errorf("save pin: %w", err)
+				return fmt.Errorf("create pin: %w", err)
 			}
 
-			fmt.Printf("New pin ID: %x\n", pin.ID)
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("commit transaction: %w", err)
+			}
 
-			return tx.Commit()
+			fmt.Printf("New pin ID: %v\n", pin.ID)
+
+			return nil
 		},
 	}
 	addCmd.Flags().StringVar(&addFlags.User, "user", "", "pin owner")
@@ -72,16 +78,23 @@ func init() {
 		Use:   "list",
 		Short: "list all pins in the database",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			var pins []dbs.Pin
-			err = db.All(&pins)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
-				return fmt.Errorf("get pins: %w", err)
+				return fmt.Errorf("begin transaction: %w", err)
+			}
+			defer tx.Rollback()
+
+			pins, err := tx.Pin.Query().All(ctx)
+			if err != nil {
+				return fmt.Errorf("query pins: %w", err)
 			}
 
 			for _, pin := range pins {
@@ -100,37 +113,35 @@ func init() {
 		Short: "remove pins from the database",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			tx, err := db.Begin(true)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
 				return fmt.Errorf("begin transaction: %w", err)
 			}
 			defer tx.Rollback()
 
-			for _, arg := range args {
-				var pins []dbs.Pin
-				err = db.Find("Name", arg, &pins)
+			for _, name := range args {
+				_, err := tx.Pin.Delete().
+					Where(pin.Name(name)).
+					Exec(ctx)
 				if err != nil {
-					return fmt.Errorf("get pins: %w", err)
-				}
-				if (len(pins) > 1) && !rmFlags.Force {
-					return fmt.Errorf("found %v pins but no --force flag given", len(pins))
-				}
-
-				for _, pin := range pins {
-					err = tx.DeleteStruct(&pin)
-					if err != nil {
-						return fmt.Errorf("delete pin %v: %w", pin.ID, err)
-					}
+					return fmt.Errorf("delete pin %q: %w", name, err)
 				}
 			}
 
-			return tx.Commit()
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("commit transaction: %w", err)
+			}
+
+			return nil
 		},
 	}
 	rmCmd.Flags().BoolVar(&rmFlags.Force, "force", false, "allow deletion of multiple matching pins per name")
@@ -143,33 +154,36 @@ func init() {
 		Short: "manually sets the status of pins",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			tx, err := db.Begin(true)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
 				return fmt.Errorf("begin transaction: %w", err)
 			}
 			defer tx.Rollback()
 
 			for _, id := range args {
-				var pin dbs.Pin
-				err = tx.One("ID", id, &pin)
-				if err != nil {
-					return fmt.Errorf("get pin %v: %w", id, err)
-				}
-
-				pin.Status = sips.RequestStatus(setstatusFlags.Status)
-				err = tx.Update(&pin)
+				err := tx.Pin.Update().
+					Where(pin.ID(id)).
+					SetStatus(sips.RequestStatus(setstatusFlags.Status)).
+					Exec(ctx)
 				if err != nil {
 					return fmt.Errorf("update pin %v: %w", id, err)
 				}
 			}
 
-			return tx.Commit()
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("commit transaction: %w", err)
+			}
+
+			return nil
 		},
 	}
 	setstatusCmd.Flags().StringVar(&setstatusFlags.Status, "status", string(sips.Queued), "status to reset pins to")

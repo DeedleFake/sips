@@ -10,7 +10,7 @@ import (
 	"github.com/asdine/storm/q"
 )
 
-// MigrateFromBolt migrates data from the old BoltDB system to the new ent-based one.
+// MigrateFromBolt migrates data from the old BoltDB system to the new one.
 func MigrateFromBolt(ctx context.Context, entc *ent.Client, bolt *storm.DB) error {
 	tx, err := entc.BeginTx(ctx, nil)
 	if err != nil {
@@ -25,14 +25,23 @@ func MigrateFromBolt(ctx context.Context, entc *ent.Client, bolt *storm.DB) erro
 	}
 
 	for _, user := range users {
+		u, err := tx.User.Create().
+			SetCreateTime(user.Created).
+			SetName(user.Name).
+			Save(ctx)
+		if err != nil {
+			return fmt.Errorf("create ent user for BoltDB user %d: %w", user.ID, err)
+		}
+
 		var pins []dbs.Pin
-		err := bolt.Select(q.Eq("UserID", user.ID)).Find(&pins)
+		err = bolt.Select(q.Eq("User", user.ID)).Find(&pins)
 		if err != nil {
 			return fmt.Errorf("get BoltDB pins for user %d: %w", user.ID, err)
 		}
-		epins := make([]*ent.Pin, len(pins))
-		for i, pin := range pins {
-			epin, err := tx.Pin.Create().
+		for _, pin := range pins {
+			_, err := tx.Pin.Create().
+				SetCreateTime(pin.Created).
+				SetUser(u).
 				SetName(pin.Name).
 				SetStatus(pin.Status).
 				SetOrigins(pin.Origins).
@@ -40,32 +49,21 @@ func MigrateFromBolt(ctx context.Context, entc *ent.Client, bolt *storm.DB) erro
 			if err != nil {
 				return fmt.Errorf("create ent pin: %w", err)
 			}
-			epins[i] = epin
 		}
 
 		var tokens []dbs.Token
-		err = bolt.Select(q.Eq("UserID", user.ID)).Find(&tokens)
+		err = bolt.Select(q.Eq("User", user.ID)).Find(&tokens)
 		if err != nil {
 			return fmt.Errorf("get BoltDB tokens for user %d: %w", user.ID, err)
 		}
-		etokens := make([]*ent.Token, len(pins))
-		for i, token := range tokens {
-			etoken, err := tx.Token.Create().
+		for _, token := range tokens {
+			_, err := tx.Token.Create().
+				SetCreateTime(token.Created).
 				SetToken(token.ID).
 				Save(ctx)
 			if err != nil {
 				return fmt.Errorf("create ent token: %w", err)
 			}
-			etokens[i] = etoken
-		}
-
-		_, err = tx.User.Create().
-			SetName(user.Name).
-			AddTokens(etokens...).
-			AddPins(epins...).
-			Save(ctx)
-		if err != nil {
-			return fmt.Errorf("create ent user for BoltDB user %d: %w", user.ID, err)
 		}
 	}
 

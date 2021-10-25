@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/DeedleFake/sips"
-	"github.com/DeedleFake/sips/internal/dbs"
+	dbs "github.com/DeedleFake/sips/internal/bolt"
 	"github.com/DeedleFake/sips/internal/ipfsapi"
 	"github.com/DeedleFake/sips/internal/log"
 	"github.com/asdine/storm"

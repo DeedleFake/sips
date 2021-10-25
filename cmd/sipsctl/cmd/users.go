@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/DeedleFake/sips/internal/dbs"
+	dbs "github.com/DeedleFake/sips/internal/bolt"
 	"github.com/spf13/cobra"
 )
 

@@ -2,10 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/DeedleFake/sips/internal/dbs"
-	"github.com/DeedleFake/sips/internal/dbs/migrate"
+	"github.com/DeedleFake/sips/db"
+	dbs "github.com/DeedleFake/sips/internal/bolt"
+	"github.com/DeedleFake/sips/internal/log"
 	"github.com/spf13/cobra"
 )
 
@@ -19,90 +19,43 @@ var migrateCmd = &cobra.Command{
 }
 
 func init() {
-	runCmd := &cobra.Command{
-		Use:   "run",
-		Short: "run migrations",
+	var fromboltArgs struct {
+		BoltDBPath string
+	}
+	fromboltCmd := &cobra.Command{
+		Use:   "frombolt",
+		Short: "migrate from old BoltDB database",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
-			if err != nil {
-				return fmt.Errorf("open database: %w", err)
-			}
-			defer db.Close()
+			ctx := cmd.Context()
 
-			err = migrate.Run(db)
+			log.Infof("opening BoltDB database")
+			bolt, err := dbs.Open(fromboltArgs.BoltDBPath)
 			if err != nil {
-				return fmt.Errorf("run migrations: %w", err)
+				return fmt.Errorf("open BoltDB database: %w", err)
+			}
+			defer bolt.Close()
+
+			log.Infof("opening ent database")
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
+			if err != nil {
+				return fmt.Errorf("open PostgreSQL database: %w", err)
+			}
+			defer entc.Close()
+
+			log.Infof("migrating from BoltDB database to ent database")
+			err = db.MigrateFromBolt(ctx, entc, bolt)
+			if err != nil {
+				return fmt.Errorf("migrate: %w", err)
 			}
 
+			log.Infof("migration complete")
 			return nil
 		},
 	}
-
-	setCmd := &cobra.Command{
-		Use:   "set <version>",
-		Short: "manually set the current database schema version",
-		Long: fmt.Sprintf(`Sets the current database schema version. The version provided must
-match the layout %q. As a special case, it may instead
-be the word "clear", in which case the version info is removed from
-the database completely.`, migrate.VersionLayout),
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
-			if err != nil {
-				return fmt.Errorf("open database: %w", err)
-			}
-			defer db.Close()
-
-			if args[0] == "clear" {
-				err = db.Delete(migrate.Bucket, migrate.VersionKey)
-				if err != nil {
-					return fmt.Errorf("delete version: %w", err)
-				}
-				return nil
-			}
-
-			version, err := time.Parse(migrate.VersionLayout, args[0])
-			if err != nil {
-				return fmt.Errorf("parse version: %w", err)
-			}
-
-			err = db.Set(migrate.Bucket, migrate.VersionKey, version)
-			if err != nil {
-				return fmt.Errorf("set version: %w", err)
-			}
-
-			return nil
-		},
-	}
-
-	getCmd := &cobra.Command{
-		Use:   "get",
-		Short: "get the current database schema version",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
-			if err != nil {
-				return fmt.Errorf("open database: %w", err)
-			}
-			defer db.Close()
-
-			current, found, err := migrate.CurrentVersion(db)
-			if err != nil {
-				return fmt.Errorf("get current version: %w", err)
-			}
-
-			if !found {
-				fmt.Println("no version info in database")
-				return nil
-			}
-
-			fmt.Println(current.Format(migrate.VersionLayout))
-			return nil
-		},
-	}
+	fromboltCmd.Flags().StringVar(&fromboltArgs.BoltDBPath, "boltdb", "", "path to old BoltDB database")
+	fromboltCmd.MarkFlagRequired("boltdb")
 
 	migrateCmd.AddCommand(
-		runCmd,
-		setCmd,
-		getCmd,
+		fromboltCmd,
 	)
 }

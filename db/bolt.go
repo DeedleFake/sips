@@ -12,7 +12,7 @@ import (
 
 // MigrateFromBolt migrates data from the old BoltDB system to the new one.
 func MigrateFromBolt(ctx context.Context, entc *ent.Client, bolt *storm.DB) error {
-	tx, err := entc.BeginTx(ctx, nil)
+	tx, err := entc.Tx(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
@@ -44,6 +44,7 @@ func MigrateFromBolt(ctx context.Context, entc *ent.Client, bolt *storm.DB) erro
 				SetUser(u).
 				SetName(pin.Name).
 				SetStatus(pin.Status).
+				SetCID(pin.CID).
 				SetOrigins(pin.Origins).
 				Save(ctx)
 			if err != nil {

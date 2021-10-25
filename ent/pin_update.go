@@ -9,6 +9,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/ent/pin"
 	"github.com/DeedleFake/sips/ent/predicate"
 	"github.com/DeedleFake/sips/ent/user"
@@ -28,8 +29,8 @@ func (pu *PinUpdate) Where(ps ...predicate.Pin) *PinUpdate {
 }
 
 // SetStatus sets the "Status" field.
-func (pu *PinUpdate) SetStatus(pi pin.Status) *PinUpdate {
-	pu.mutation.SetStatus(pi)
+func (pu *PinUpdate) SetStatus(ss sips.RequestStatus) *PinUpdate {
+	pu.mutation.SetStatus(ss)
 	return pu
 }
 
@@ -272,8 +273,8 @@ type PinUpdateOne struct {
 }
 
 // SetStatus sets the "Status" field.
-func (puo *PinUpdateOne) SetStatus(pi pin.Status) *PinUpdateOne {
-	puo.mutation.SetStatus(pi)
+func (puo *PinUpdateOne) SetStatus(ss sips.RequestStatus) *PinUpdateOne {
+	puo.mutation.SetStatus(ss)
 	return puo
 }
 

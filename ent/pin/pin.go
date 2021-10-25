@@ -5,6 +5,8 @@ package pin
 import (
 	"fmt"
 	"time"
+
+	"github.com/DeedleFake/sips"
 )
 
 const (
@@ -77,25 +79,10 @@ var (
 	NameValidator func(string) error
 )
 
-// Status defines the type for the "Status" enum field.
-type Status string
-
-// Status values.
-const (
-	StatusQueued  Status = "queued"
-	StatusPinning Status = "pinning"
-	StatusPinned  Status = "pinned"
-	StatusFailed  Status = "failed"
-)
-
-func (_status Status) String() string {
-	return string(_status)
-}
-
 // StatusValidator is a validator for the "Status" field enum values. It is called by the builders before save.
-func StatusValidator(_status Status) error {
+func StatusValidator(_status sips.RequestStatus) error {
 	switch _status {
-	case StatusQueued, StatusPinning, StatusPinned, StatusFailed:
+	case "queued", "pinning", "pinned", "failed":
 		return nil
 	default:
 		return fmt.Errorf("pin: invalid enum value for Status field: %q", _status)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
+	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/ent/pin"
 	"github.com/DeedleFake/sips/ent/user"
 )
@@ -23,7 +24,7 @@ type Pin struct {
 	// UpdateTime holds the value of the "update_time" field.
 	UpdateTime time.Time `json:"update_time,omitempty"`
 	// Status holds the value of the "Status" field.
-	Status pin.Status `json:"Status,omitempty"`
+	Status sips.RequestStatus `json:"Status,omitempty"`
 	// Name holds the value of the "Name" field.
 	Name string `json:"Name,omitempty"`
 	// Origins holds the value of the "Origins" field.
@@ -109,7 +110,7 @@ func (pi *Pin) assignValues(columns []string, values []interface{}) error {
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field Status", values[i])
 			} else if value.Valid {
-				pi.Status = pin.Status(value.String)
+				pi.Status = sips.RequestStatus(value.String)
 			}
 		case pin.FieldName:
 			if value, ok := values[i].(*sql.NullString); !ok {

@@ -21,12 +21,7 @@ func (Pin) Mixin() []ent.Mixin {
 func (Pin) Fields() []ent.Field {
 	return []ent.Field{
 		field.Enum("Status").
-			Values(
-				string(sips.Queued),
-				string(sips.Pinning),
-				string(sips.Pinned),
-				string(sips.Failed),
-			),
+			GoType(sips.Queued),
 		field.String("Name").
 			NotEmpty(),
 		field.Strings("Origins").

@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/ent/pin"
 	"github.com/DeedleFake/sips/ent/user"
 )
@@ -52,8 +53,8 @@ func (pc *PinCreate) SetNillableUpdateTime(t *time.Time) *PinCreate {
 }
 
 // SetStatus sets the "Status" field.
-func (pc *PinCreate) SetStatus(pi pin.Status) *PinCreate {
-	pc.mutation.SetStatus(pi)
+func (pc *PinCreate) SetStatus(ss sips.RequestStatus) *PinCreate {
+	pc.mutation.SetStatus(ss)
 	return pc
 }
 
@@ -360,7 +361,7 @@ func (u *PinUpsert) UpdateUpdateTime() *PinUpsert {
 }
 
 // SetStatus sets the "Status" field.
-func (u *PinUpsert) SetStatus(v pin.Status) *PinUpsert {
+func (u *PinUpsert) SetStatus(v sips.RequestStatus) *PinUpsert {
 	u.Set(pin.FieldStatus, v)
 	return u
 }
@@ -472,7 +473,7 @@ func (u *PinUpsertOne) UpdateUpdateTime() *PinUpsertOne {
 }
 
 // SetStatus sets the "Status" field.
-func (u *PinUpsertOne) SetStatus(v pin.Status) *PinUpsertOne {
+func (u *PinUpsertOne) SetStatus(v sips.RequestStatus) *PinUpsertOne {
 	return u.Update(func(s *PinUpsert) {
 		s.SetStatus(v)
 	})
@@ -753,7 +754,7 @@ func (u *PinUpsertBulk) UpdateUpdateTime() *PinUpsertBulk {
 }
 
 // SetStatus sets the "Status" field.
-func (u *PinUpsertBulk) SetStatus(v pin.Status) *PinUpsertBulk {
+func (u *PinUpsertBulk) SetStatus(v sips.RequestStatus) *PinUpsertBulk {
 	return u.Update(func(s *PinUpsert) {
 		s.SetStatus(v)
 	})

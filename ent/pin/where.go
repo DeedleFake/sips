@@ -7,6 +7,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/ent/predicate"
 )
 
@@ -267,21 +268,23 @@ func UpdateTimeLTE(v time.Time) predicate.Pin {
 }
 
 // StatusEQ applies the EQ predicate on the "Status" field.
-func StatusEQ(v Status) predicate.Pin {
+func StatusEQ(v sips.RequestStatus) predicate.Pin {
+	vc := v
 	return predicate.Pin(func(s *sql.Selector) {
-		s.Where(sql.EQ(s.C(FieldStatus), v))
+		s.Where(sql.EQ(s.C(FieldStatus), vc))
 	})
 }
 
 // StatusNEQ applies the NEQ predicate on the "Status" field.
-func StatusNEQ(v Status) predicate.Pin {
+func StatusNEQ(v sips.RequestStatus) predicate.Pin {
+	vc := v
 	return predicate.Pin(func(s *sql.Selector) {
-		s.Where(sql.NEQ(s.C(FieldStatus), v))
+		s.Where(sql.NEQ(s.C(FieldStatus), vc))
 	})
 }
 
 // StatusIn applies the In predicate on the "Status" field.
-func StatusIn(vs ...Status) predicate.Pin {
+func StatusIn(vs ...sips.RequestStatus) predicate.Pin {
 	v := make([]interface{}, len(vs))
 	for i := range v {
 		v[i] = vs[i]
@@ -298,7 +301,7 @@ func StatusIn(vs ...Status) predicate.Pin {
 }
 
 // StatusNotIn applies the NotIn predicate on the "Status" field.
-func StatusNotIn(vs ...Status) predicate.Pin {
+func StatusNotIn(vs ...sips.RequestStatus) predicate.Pin {
 	v := make([]interface{}, len(vs))
 	for i := range v {
 		v[i] = vs[i]

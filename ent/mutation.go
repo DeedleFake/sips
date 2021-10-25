@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeedleFake/sips"
 	"github.com/DeedleFake/sips/ent/pin"
 	"github.com/DeedleFake/sips/ent/predicate"
 	"github.com/DeedleFake/sips/ent/token"
@@ -38,7 +39,7 @@ type PinMutation struct {
 	id            *int
 	create_time   *time.Time
 	update_time   *time.Time
-	_Status       *pin.Status
+	_Status       *sips.RequestStatus
 	_Name         *string
 	_Origins      *[]string
 	clearedFields map[string]struct{}
@@ -201,12 +202,12 @@ func (m *PinMutation) ResetUpdateTime() {
 }
 
 // SetStatus sets the "Status" field.
-func (m *PinMutation) SetStatus(pi pin.Status) {
-	m._Status = &pi
+func (m *PinMutation) SetStatus(ss sips.RequestStatus) {
+	m._Status = &ss
 }
 
 // Status returns the value of the "Status" field in the mutation.
-func (m *PinMutation) Status() (r pin.Status, exists bool) {
+func (m *PinMutation) Status() (r sips.RequestStatus, exists bool) {
 	v := m._Status
 	if v == nil {
 		return
@@ -217,7 +218,7 @@ func (m *PinMutation) Status() (r pin.Status, exists bool) {
 // OldStatus returns the old "Status" field's value of the Pin entity.
 // If the Pin object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *PinMutation) OldStatus(ctx context.Context) (v pin.Status, err error) {
+func (m *PinMutation) OldStatus(ctx context.Context) (v sips.RequestStatus, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, fmt.Errorf("OldStatus is only allowed on UpdateOne operations")
 	}
@@ -456,7 +457,7 @@ func (m *PinMutation) SetField(name string, value ent.Value) error {
 		m.SetUpdateTime(v)
 		return nil
 	case pin.FieldStatus:
-		v, ok := value.(pin.Status)
+		v, ok := value.(sips.RequestStatus)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}

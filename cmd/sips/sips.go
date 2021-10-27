@@ -51,10 +51,10 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("open database: %w", err)
 	}
 	defer entc.Close()
-	log.Infof("Database opened at %q", dbpath)
+	log.Infof("database opened at %q", dbpath)
 
 	if *domigration {
-		log.Infof("Running migrations...")
+		log.Infof("running database migration")
 		err = entc.Schema.Create(ctx)
 		if err != nil {
 			return fmt.Errorf("migrate database: %w", err)
@@ -89,11 +89,11 @@ func run(ctx context.Context) error {
 		sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		log.Infof("Exiting...")
+		log.Infof("exiting")
 		shutdown <- server.Shutdown(sctx)
 	}()
 
-	log.Infof("Starting server...")
+	log.Infof("starting server on %q", *addr)
 	err = server.ListenAndServe()
 	if err != nil {
 		if !errors.Is(err, http.ErrServerClosed) {

@@ -11,11 +11,13 @@ SIPS is a Simple IPFS Pinning Service. It does the bare minimum necessary to pre
 Setup
 -----
 
+SIPS is capable of using either Postgres or SQLite3 as its backend. By default only Postgres is available, but the `sqlite3` build tag will add support for SQLite3.
+
 After installation, SIPS will have no users or tokens in its database. To create some, use the `sipsctl` utility that is provided:
 
 ```bash
-$ sipsctl users add whateverUsernameYouWant
-$ sipsctl tokens add --user whateverUsernameYouWant
+$ sipsctl users add -db "$DATABASE_URL" whateverUsernameYouWant
+$ sipsctl tokens add -db "$DATABASE_URL" --user whateverUsernameYouWant
 ```
 
 You can then use that token with a pinning service client to add, remove, and list pins.

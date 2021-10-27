@@ -234,7 +234,7 @@ func (q *PinQueue) addPin(ctx context.Context, pin *ent.Pin) {
 			return
 		case progress, closed := <-progress:
 			if closed {
-				log.Infof("Pinned %v as %q (%v)", pin.CID, pin.Name, pin.ID)
+				log.Infof("pinned %v as %q (%v)", pin.CID, pin.Name, pin.ID)
 				status = sips.Pinned
 				return
 			}
@@ -292,7 +292,7 @@ func (q *PinQueue) updatePin(ctx context.Context, from, to *ent.Pin) {
 		status = sips.Failed
 		return
 	}
-	log.Infof("Pin %v updated from %v to %v.", to.ID, from.CID, to.CID)
+	log.Infof("pin %v updated from %v to %v", to.ID, from.CID, to.CID)
 
 	status = sips.Pinned
 }
@@ -310,7 +310,7 @@ func (q *PinQueue) deletePin(ctx context.Context, pin *ent.Pin) {
 		log.Errorf("remove pin %v from IPFS: %w", pin.CID, err)
 		return
 	}
-	log.Infof("Pin %v (%q, %v) deleted.", pin.ID, pin.Name, pin.CID)
+	log.Infof("pin %v (%q, %v) deleted", pin.ID, pin.Name, pin.CID)
 
 	err = tx.Pin.DeleteOneID(pin.ID).Exec(ctx)
 	if err != nil {

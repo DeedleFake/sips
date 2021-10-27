@@ -2,11 +2,17 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/DeedleFake/sips/db"
 	"github.com/DeedleFake/sips/internal/cli"
 	"github.com/spf13/cobra"
 )
+
+// errEarlyExit is a signal value to indicate that a command exited
+// early cleanly, despite returning an error. Cobra is weird.
+var errEarlyExit = errors.New("early exit")
 
 var rootCmd = &cobra.Command{
 	Use:           "sipsctl",
@@ -18,6 +24,14 @@ var rootCmd = &cobra.Command{
 		return cmd.Help()
 	},
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if rootFlags.DBDriver == "list" {
+			fmt.Println("Available database drivers:")
+			for _, t := range db.Drivers() {
+				fmt.Printf("  %s\n", t)
+			}
+			return errEarlyExit
+		}
+
 		dbpath, _, err := cli.ExpandConfig(rootFlags.DBPath)
 		if err != nil {
 			return fmt.Errorf("expand database path: %w", err)
@@ -28,10 +42,17 @@ var rootCmd = &cobra.Command{
 }
 
 var rootFlags struct {
-	DBPath string
+	DBDriver string
+	DBPath   string
 }
 
 func init() {
+	rootCmd.PersistentFlags().StringVar(
+		&rootFlags.DBDriver,
+		"dbdriver",
+		"postgres",
+		"database driver to use (\"list\" to show available)",
+	)
 	rootCmd.PersistentFlags().StringVar(
 		&rootFlags.DBPath,
 		"db",
@@ -48,5 +69,9 @@ func init() {
 }
 
 func ExecuteContext(ctx context.Context) error {
-	return rootCmd.ExecuteContext(ctx)
+	err := rootCmd.ExecuteContext(ctx)
+	if errors.Is(err, errEarlyExit) {
+		return nil
+	}
+	return err
 }

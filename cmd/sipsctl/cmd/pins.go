@@ -32,7 +32,7 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
+			entc, err := db.OpenAndMigrate(ctx, rootFlags.DBDriver, rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -81,7 +81,7 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
+			entc, err := db.OpenAndMigrate(ctx, rootFlags.DBDriver, rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -116,7 +116,7 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
+			entc, err := db.OpenAndMigrate(ctx, rootFlags.DBDriver, rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
@@ -157,7 +157,7 @@ func init() {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
-			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
+			entc, err := db.OpenAndMigrate(ctx, rootFlags.DBDriver, rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}

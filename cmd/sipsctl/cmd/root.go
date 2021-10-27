@@ -35,7 +35,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(
 		&rootFlags.DBPath,
 		"db",
-		"host=/var/run/postgresql dbname=sips sslmode=disable",
+		"host=/var/run/postgresql dbname=sips",
 		"database connection string ($CONFIG will be replaced with user config dir path)",
 	)
 

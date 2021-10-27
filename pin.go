@@ -12,6 +12,15 @@ const (
 	Failed  RequestStatus = "failed"
 )
 
+func (s RequestStatus) Values() []string {
+	return []string{
+		string(Queued),
+		string(Pinning),
+		string(Pinned),
+		string(Failed),
+	}
+}
+
 // PinStatus indicates the status of a pinning request and provides
 // associated info.
 type PinStatus struct {

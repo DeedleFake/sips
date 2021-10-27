@@ -3,9 +3,9 @@ package cmd
 import (
 	"fmt"
 	"regexp"
-	"time"
 
-	"github.com/DeedleFake/sips/dbs"
+	"github.com/DeedleFake/sips/db"
+	"github.com/DeedleFake/sips/ent/user"
 	"github.com/spf13/cobra"
 )
 
@@ -28,59 +28,69 @@ func init() {
 		Long:  `Adds a new user.`,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			if !validUserRE.MatchString(args[0]) {
-				return fmt.Errorf("invalid username: %q", args[0])
-			}
-
-			tx, err := db.Begin(true)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
 				return fmt.Errorf("begin transaction: %w", err)
 			}
 			defer tx.Rollback()
 
-			user := dbs.User{
-				Created: time.Now(),
-				Name:    args[0],
+			if !validUserRE.MatchString(args[0]) {
+				return fmt.Errorf("invalid username: %q", args[0])
 			}
-			err = tx.Save(&user)
+
+			u, err := tx.User.Create().
+				SetName(args[0]).
+				Save(ctx)
 			if err != nil {
-				return fmt.Errorf("save user: %w", err)
+				return fmt.Errorf("create user: %w", err)
 			}
 
-			fmt.Printf("Successfully created user %q.\nNew user ID: %v\n", user.Name, user.ID)
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("commit transaction: %w", err)
+			}
 
-			return tx.Commit()
+			fmt.Printf("Added user %q\n", u.Name)
+			fmt.Printf("  ID: %d\n", u.ID)
+
+			return nil
 		},
 	}
-
-	// TODO: Add a command for removing users, possibly along with their
-	// pins.
 
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "list all existing users",
 		Long:  `Lists all registered users in the database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			var users []dbs.User
-			err = db.All(&users)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
-				return fmt.Errorf("get users: %w", err)
+				return fmt.Errorf("begin transaction: %w", err)
+			}
+			defer tx.Rollback()
+
+			users, err := tx.User.Query().All(ctx)
+			if err != nil {
+				return fmt.Errorf("query users: %w", err)
 			}
 
-			for _, user := range users {
-				fmt.Printf("%v: %q\n", user.ID, user.Name)
+			for _, u := range users {
+				fmt.Printf("%v: %q\n", u.ID, u.Name)
 			}
 
 			return nil
@@ -92,35 +102,35 @@ func init() {
 		Short: "remove users from the database",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			db, err := dbs.Open(rootFlags.DBPath)
+			ctx := cmd.Context()
+
+			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
-			defer db.Close()
+			defer entc.Close()
 
-			tx, err := db.Begin(true)
+			tx, err := entc.Tx(ctx)
 			if err != nil {
 				return fmt.Errorf("begin transaction: %w", err)
 			}
 			defer tx.Rollback()
 
-			for _, arg := range args {
-				// TODO: Add the ability to also delete tokens and/or pins for
-				// each user.
-
-				var user dbs.User
-				err = tx.One("Name", arg, &user)
-				if err != nil {
-					return fmt.Errorf("find user %q: %w", arg, err)
-				}
-
-				err = tx.DeleteStruct(&user)
-				if err != nil {
-					return fmt.Errorf("delete user %q: %w", arg, err)
-				}
+			n, err := tx.User.Delete().
+				Where(user.NameIn(args...)).
+				Exec(ctx)
+			if err != nil {
+				return fmt.Errorf("delete users: %w", err)
 			}
 
-			return tx.Commit()
+			err = tx.Commit()
+			if err != nil {
+				return fmt.Errorf("commit transaction: %w", err)
+			}
+
+			fmt.Printf("Deleted %d users\n", n)
+
+			return nil
 		},
 	}
 

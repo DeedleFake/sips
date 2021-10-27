@@ -14,8 +14,7 @@ import (
 	"time"
 
 	"github.com/DeedleFake/sips"
-	"github.com/DeedleFake/sips/dbs"
-	"github.com/DeedleFake/sips/dbs/migrate"
+	"github.com/DeedleFake/sips/db"
 	"github.com/DeedleFake/sips/internal/cli"
 	"github.com/DeedleFake/sips/internal/ipfsapi"
 	"github.com/DeedleFake/sips/internal/log"
@@ -25,7 +24,7 @@ func run(ctx context.Context) error {
 	addr := flag.String("addr", ":8080", "address to serve HTTP on")
 	api := flag.String("api", "http://127.0.0.1:5001", "IPFS API to contact")
 	apitimeout := flag.Duration("apitimeout", 30*time.Second, "timeout for requests to the IPFS API")
-	rawdbpath := flag.String("db", "$CONFIG/sips/database.db", "path to database ($CONFIG will be replaced with user config dir path)")
+	rawdbpath := flag.String("db", "host=/var/run/postgresql dbname=sips", "path to database ($CONFIG will be replaced with user config dir path)")
 	domigration := flag.Bool("migrate", true, "perform a database migration upon starting")
 	flag.Parse()
 
@@ -47,16 +46,16 @@ func run(ctx context.Context) error {
 			return fmt.Errorf("create config directory: %w", err)
 		}
 	}
-	db, err := dbs.Open(dbpath)
+	entc, err := db.Open("postgres", dbpath)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
-	defer db.Close()
+	defer entc.Close()
 	log.Infof("Database opened at %q", dbpath)
 
 	if *domigration {
 		log.Infof("Running migrations...")
-		err = migrate.Run(db)
+		err = entc.Schema.Create(ctx)
 		if err != nil {
 			return fmt.Errorf("migrate database: %w", err)
 		}
@@ -64,7 +63,7 @@ func run(ctx context.Context) error {
 
 	queue := PinQueue{
 		IPFS: ipfs,
-		DB:   db,
+		DB:   entc,
 	}
 	queue.Start(ctx)
 	defer queue.Stop()
@@ -72,7 +71,7 @@ func run(ctx context.Context) error {
 	ph := PinHandler{
 		Queue: &queue,
 		IPFS:  ipfs,
-		DB:    db,
+		DB:    entc,
 	}
 
 	server := http.Server{

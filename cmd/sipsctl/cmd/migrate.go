@@ -36,7 +36,7 @@ func init() {
 			defer bolt.Close()
 
 			log.Infof("opening ent database")
-			entc, err := db.OpenAndMigrate(ctx, "postgres", rootFlags.DBPath)
+			entc, err := db.OpenAndMigrate(ctx, rootFlags.DBDriver, rootFlags.DBPath)
 			if err != nil {
 				return fmt.Errorf("open PostgreSQL database: %w", err)
 			}

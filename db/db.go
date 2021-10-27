@@ -30,3 +30,11 @@ func OpenAndMigrate(ctx context.Context, driver, source string, opts ...ent.Opti
 func Open(driver, source string, opts ...ent.Option) (*ent.Client, error) {
 	return ent.Open(driver, source, opts...)
 }
+
+var drivers = []string{"postgres"}
+
+// Drivers returns the list of supported drivers. This list is a
+// subset of the list available from database/sql.Drivers().
+func Drivers() []string {
+	return append([]string(nil), drivers...)
+}

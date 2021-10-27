@@ -13,6 +13,20 @@ import (
 	"github.com/DeedleFake/sips/internal/log"
 )
 
+func auth(ctx context.Context, db *ent.Tx) (u *ent.User, err error) {
+	tokstr, _ := sips.Token(ctx)
+
+	tok, err := db.Token.Query().
+		WithUser().
+		Where(token.Token(tokstr)).
+		Only(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("find token %q: %w", tokstr, err)
+	}
+
+	return tok.Edges.User, nil
+}
+
 type PinHandler struct {
 	Queue *PinQueue
 	IPFS  *ipfsapi.Client
@@ -267,11 +281,6 @@ func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 		return log.Errorf("query pin %q: %w", requestID, err)
 	}
 
-	err = h.DB.Pin.DeleteOne(pin).Exec(ctx)
-	if err != nil {
-		return log.Errorf("delete pin %q: %w", requestID, err)
-	}
-
 	select {
 	case <-ctx.Done():
 		return log.Errorf("queue delete %q: %w", requestID, ctx.Err())
@@ -284,18 +293,4 @@ func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
 	}
 
 	return nil
-}
-
-func auth(ctx context.Context, db *ent.Tx) (u *ent.User, err error) {
-	tokstr, _ := sips.Token(ctx)
-
-	tok, err := db.Token.Query().
-		WithUser().
-		Where(token.Token(tokstr)).
-		Only(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("find token %q: %w", tokstr, err)
-	}
-
-	return tok.Edges.User, nil
 }

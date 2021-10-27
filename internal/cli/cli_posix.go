@@ -1,3 +1,4 @@
+//go:build linux || unix || darwin || netbsd || openbsd || freebsd
 // +build linux unix darwin netbsd openbsd freebsd
 
 package cli

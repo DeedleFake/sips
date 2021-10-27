@@ -2,15 +2,13 @@ package main
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 
 	"github.com/DeedleFake/sips"
-	dbs "github.com/DeedleFake/sips/internal/bolt"
+	"github.com/DeedleFake/sips/ent"
+	"github.com/DeedleFake/sips/ent/pin"
 	"github.com/DeedleFake/sips/internal/ipfsapi"
 	"github.com/DeedleFake/sips/internal/log"
-	"github.com/asdine/storm"
-	sq "github.com/asdine/storm/q"
 )
 
 // PinQueue handles queued pin requests, synchronizing them to both
@@ -20,12 +18,12 @@ type PinQueue struct {
 	cancel  context.CancelFunc
 	done    chan struct{}
 
-	add    chan dbs.Pin
-	update chan [2]dbs.Pin
-	del    chan dbs.Pin
+	add    chan *ent.Pin
+	update chan [2]*ent.Pin
+	del    chan *ent.Pin
 
 	IPFS *ipfsapi.Client
-	DB   *storm.DB
+	DB   *ent.Client
 }
 
 func (q *PinQueue) setRunning() bool {
@@ -47,9 +45,9 @@ func (q *PinQueue) Start(ctx context.Context) {
 	ctx, q.cancel = context.WithCancel(ctx)
 	q.done = make(chan struct{})
 
-	q.add = make(chan dbs.Pin)
-	q.update = make(chan [2]dbs.Pin)
-	q.del = make(chan dbs.Pin)
+	q.add = make(chan *ent.Pin)
+	q.update = make(chan [2]*ent.Pin)
+	q.del = make(chan *ent.Pin)
 
 	go q.run(ctx)
 	q.queueExisting(ctx)
@@ -64,44 +62,51 @@ func (q *PinQueue) Stop() {
 
 // Add returns a channel to which pins that are to be added should be
 // sent.
-func (q *PinQueue) Add() chan<- dbs.Pin {
+func (q *PinQueue) Add() chan<- *ent.Pin {
 	return q.add
 }
 
 // Update returns a channel to which pairs of pins should be sent
 // where the first pin is to be updated to the second one.
-func (q *PinQueue) Update() chan<- [2]dbs.Pin {
+func (q *PinQueue) Update() chan<- [2]*ent.Pin {
 	return q.update
 }
 
 // Delete returns a channel to which pins that are to be deleted
 // should be sent.
-func (q *PinQueue) Delete() chan<- dbs.Pin {
+func (q *PinQueue) Delete() chan<- *ent.Pin {
 	return q.del
 }
 
 func (q *PinQueue) queueExisting(ctx context.Context) {
-	tx, err := q.DB.Begin(false)
+	tx, err := q.DB.Tx(ctx)
 	if err != nil {
 		log.Errorf("begin transaction for existing queued pins: %w", err)
 		return
 	}
 	defer tx.Rollback()
 
-	var pins []dbs.Pin
-	err = tx.Select(sq.In("Status", []sips.RequestStatus{sips.Queued, sips.Pinning})).Find(&pins)
+	pins, err := tx.Pin.Query().
+		Where(pin.StatusIn(sips.Queued, sips.Pinning)).
+		All(ctx)
 	if err != nil {
-		if errors.Is(err, storm.ErrNotFound) {
-			log.Infof("No existing queued or in-progress pins.")
+		if ent.IsNotFound(err) {
+			log.Infof("no existing queued or in-progress pins")
 			return
 		}
 
-		log.Errorf("find existing queued pins: %w", err)
+		log.Errorf("query existing queued pins: %w", err)
 		return
 	}
 
 	for _, pin := range pins {
 		q.add <- pin
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Errorf("commit transaction for existing queued pins: %w", err)
+		return
 	}
 }
 
@@ -114,9 +119,9 @@ func (q *PinQueue) run(ctx context.Context) {
 	del := q.del
 
 	var stopping bool
-	jobs := make(map[uint64]context.CancelFunc)
-	jobdone := make(chan uint64)
-	jobctx := func(id uint64) context.Context {
+	jobs := make(map[int]context.CancelFunc)
+	jobdone := make(chan int)
+	jobctx := func(id int) context.Context {
 		if cancel, ok := jobs[id]; ok {
 			cancel()
 			// TODO: Wait for the job to actually cancel completely?
@@ -178,23 +183,40 @@ func (q *PinQueue) connect(ctx context.Context, origins []string) {
 	}
 }
 
-func (q *PinQueue) addPin(ctx context.Context, pin dbs.Pin) {
+func (q *PinQueue) addPin(ctx context.Context, pin *ent.Pin) {
+	tx, err := q.DB.Tx(ctx)
+	if err != nil {
+		log.Errorf("begin transaction for pin %d: %w", pin.ID, err)
+		return
+	}
+	defer tx.Rollback()
+
 	q.connect(ctx, pin.Origins)
 
 	switch pin.Status {
 	case "", sips.Queued:
-		pin.Status = sips.Pinning
-		err := q.DB.Update(&pin)
+		pin, err = tx.Pin.UpdateOne(pin).
+			SetStatus(sips.Pinning).
+			Save(ctx)
 		if err != nil {
 			log.Errorf("update pin %v status to pinning: %w", pin.ID, err)
 			return
 		}
 	}
 
+	status := pin.Status
 	defer func() {
-		err := q.DB.Update(&pin)
+		_, err := tx.Pin.UpdateOne(pin).
+			SetStatus(status).
+			Save(ctx)
 		if err != nil {
 			log.Errorf("update pin %v status to %v: %w", pin.ID, pin.Status, err)
+			return
+		}
+
+		err = tx.Commit()
+		if err != nil {
+			log.Errorf("commit transaction for pin %v: %w", pin.ID, err)
 			return
 		}
 	}()
@@ -202,7 +224,7 @@ func (q *PinQueue) addPin(ctx context.Context, pin dbs.Pin) {
 	progress, err := q.IPFS.PinAddProgress(ctx, pin.CID)
 	if err != nil {
 		log.Errorf("pin %v to IPFS: %w", pin.CID, err)
-		pin.Status = sips.Failed
+		status = sips.Failed
 		return
 	}
 
@@ -213,62 +235,92 @@ func (q *PinQueue) addPin(ctx context.Context, pin dbs.Pin) {
 		case progress, closed := <-progress:
 			if closed {
 				log.Infof("Pinned %v as %q (%v)", pin.CID, pin.Name, pin.ID)
-				pin.Status = sips.Pinned
+				status = sips.Pinned
 				return
 			}
 
 			if progress.Err != nil {
 				log.Errorf("pin %v to IPFS: %w", pin.CID, progress.Err)
-				pin.Status = sips.Failed
+				status = sips.Failed
 				return
 			}
 		}
 	}
 }
 
-func (q *PinQueue) updatePin(ctx context.Context, from, to dbs.Pin) {
+func (q *PinQueue) updatePin(ctx context.Context, from, to *ent.Pin) {
+	tx, err := q.DB.Tx(ctx)
+	if err != nil {
+		log.Errorf("begin transaction for pin %d: %w", from.ID, err)
+		return
+	}
+	defer tx.Rollback()
+
 	q.connect(ctx, to.Origins)
 
 	if to.Status == sips.Queued {
-		to.Status = sips.Pinning
-		err := q.DB.Update(&to)
+		to, err = tx.Pin.UpdateOne(to).
+			SetStatus(sips.Pinning).
+			Save(ctx)
 		if err != nil {
 			log.Errorf("update pin %v status from queued to pinning: %w", to.ID, err)
 			return
 		}
 	}
 
+	status := to.Status
 	defer func() {
-		err := q.DB.Update(&to)
+		_, err := tx.Pin.UpdateOne(to).
+			SetStatus(status).
+			Save(ctx)
 		if err != nil {
 			log.Errorf("update pin %v status to %v: %w", to.ID, to.Status, err)
+			return
+		}
+
+		err = tx.Commit()
+		if err != nil {
+			log.Errorf("commit transaction for pin %v: %w", to.ID, err)
 			return
 		}
 	}()
 
 	// TODO: Unpin updated pins manually if nothing else has pinned them.
-	_, err := q.IPFS.PinUpdate(ctx, from.CID, to.CID, false)
+	_, err = q.IPFS.PinUpdate(ctx, from.CID, to.CID, false)
 	if err != nil {
 		log.Errorf("update pin %v to %v: %w", from.ID, to.CID, err)
-		to.Status = sips.Failed
+		status = sips.Failed
 		return
 	}
 	log.Infof("Pin %v updated from %v to %v.", to.ID, from.CID, to.CID)
 
-	to.Status = sips.Pinned
+	status = sips.Pinned
 }
 
-func (q *PinQueue) deletePin(ctx context.Context, pin dbs.Pin) {
-	_, err := q.IPFS.PinRm(ctx, pin.CID)
+func (q *PinQueue) deletePin(ctx context.Context, pin *ent.Pin) {
+	tx, err := q.DB.Tx(ctx)
+	if err != nil {
+		log.Errorf("begin transaction for pin %d: %w", pin.ID, err)
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = q.IPFS.PinRm(ctx, pin.CID)
 	if err != nil {
 		log.Errorf("remove pin %v from IPFS: %w", pin.CID, err)
 		return
 	}
 	log.Infof("Pin %v (%q, %v) deleted.", pin.ID, pin.Name, pin.CID)
 
-	err = q.DB.DeleteStruct(&pin)
+	err = tx.Pin.DeleteOneID(pin.ID).Exec(ctx)
 	if err != nil {
 		log.Errorf("delete pin %v from database: %w", pin.ID, err)
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		log.Errorf("commit transaction for pin %v: %w", pin.ID, err)
 		return
 	}
 }

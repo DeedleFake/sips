@@ -2,145 +2,171 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/DeedleFake/sips"
-	dbs "github.com/DeedleFake/sips/internal/bolt"
+	"github.com/DeedleFake/sips/ent"
+	"github.com/DeedleFake/sips/ent/pin"
+	"github.com/DeedleFake/sips/ent/token"
 	"github.com/DeedleFake/sips/internal/ipfsapi"
 	"github.com/DeedleFake/sips/internal/log"
-	"github.com/asdine/storm"
 )
 
 type PinHandler struct {
 	Queue *PinQueue
 	IPFS  *ipfsapi.Client
-	DB    *storm.DB
+	DB    *ent.Client
 }
 
 func (h PinHandler) Pins(ctx context.Context, query sips.PinQuery) ([]sips.PinStatus, error) {
-	tx, err := h.DB.Begin(false)
+	tx, err := h.DB.Tx(ctx)
 	if err != nil {
 		return nil, log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	user, err := auth(ctx, tx)
+	u, err := auth(ctx, tx)
 	if err != nil {
 		return nil, Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
-	selector := tx.Select(&queryMatcher{Query: query})
-	if query.Limit > 0 {
-		selector = selector.Limit(query.Limit)
+	q := u.QueryPins().
+		Order(ent.Desc(pin.FieldCreateTime)).
+		Limit(query.Limit)
+	if len(query.Status) > 0 {
+		q = q.Where(pin.StatusIn(query.Status...))
+	}
+	if len(query.CID) > 0 {
+		q = q.Where(pin.CIDIn(query.CID...))
+	}
+	if !query.Before.IsZero() {
+		q = q.Where(pin.CreateTimeLT(query.Before))
+	}
+	if !query.After.IsZero() {
+		q = q.Where(pin.CreateTimeGT(query.After))
+	}
+	pins, err := q.All(ctx)
+	if err != nil {
+		return nil, log.Errorf("query pins: %w", err)
 	}
 
-	var dbpins []dbs.Pin
-	err = selector.OrderBy("Created").Find(&dbpins)
-	if (err != nil) && (!errors.Is(err, storm.ErrNotFound)) {
-		return nil, log.Errorf("find pins for %v: %w", user.Name, err)
+	if query.Name != "" {
+		// TODO: Handle this in the query.
+		for i := range pins {
+			if !query.Match.Match(pins[i].Name, query.Name) {
+				pins = append(pins[:i], pins[i+1:]...)
+				i--
+			}
+		}
 	}
 
-	pins := make([]sips.PinStatus, 0, len(dbpins))
-	for _, pin := range dbpins {
-		pins = append(pins, sips.PinStatus{
-			RequestID: strconv.FormatUint(pin.ID, 16),
+	statuses := make([]sips.PinStatus, len(pins))
+	for i, pin := range pins {
+		statuses[i] = sips.PinStatus{
+			RequestID: strconv.FormatInt(int64(pin.ID), 16),
 			Status:    pin.Status,
-			Created:   pin.Created,
+			Created:   pin.CreateTime,
 			Pin: sips.Pin{
 				CID:     pin.CID,
 				Name:    pin.Name,
 				Origins: pin.Origins,
 			},
-		})
+		}
 	}
 
-	return pins, nil
+	err = tx.Commit()
+	if err != nil {
+		return nil, log.Errorf("commit transaction: %w", err)
+	}
+
+	return statuses, nil
 }
 
 func (h PinHandler) AddPin(ctx context.Context, pin sips.Pin) (sips.PinStatus, error) {
-	tx, err := h.DB.Begin(true)
+	tx, err := h.DB.Tx(ctx)
 	if err != nil {
 		return sips.PinStatus{}, log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	user, err := auth(ctx, tx)
+	u, err := auth(ctx, tx)
 	if err != nil {
 		return sips.PinStatus{}, Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
-	dbpin := dbs.Pin{
-		Created: time.Now(),
-		User:    user.ID,
-		Status:  sips.Queued,
-		Name:    pin.Name,
-		CID:     pin.CID,
-		Origins: pin.Origins,
-	}
-	err = tx.Save(&dbpin)
+	dbpin, err := h.DB.Pin.Create().
+		SetUser(u).
+		SetCID(pin.CID).
+		SetName(pin.Name).
+		SetOrigins(pin.Origins).
+		Save(ctx)
 	if err != nil {
-		return sips.PinStatus{}, log.Errorf("save pin %q: %w", pin.CID, err)
+		return sips.PinStatus{}, log.Errorf("create pin: %w", err)
 	}
 
 	select {
 	case <-ctx.Done():
-		return sips.PinStatus{}, log.Errorf("queue add %v: %w", pin.CID, err)
+		return sips.PinStatus{}, log.Errorf("queue add %q: %w", pin.CID, ctx.Err())
 	case h.Queue.Add() <- dbpin:
 	}
 
 	id, err := h.IPFS.ID(ctx)
 	if err != nil {
-		log.Errorf("get IPFS id: %w", err)
+		log.Errorf("get IPFS ID: %w", err)
 		// Purposefully don't return here.
 	}
 
+	err = tx.Commit()
+	if err != nil {
+		return sips.PinStatus{}, log.Errorf("commit transaction: %w", err)
+	}
+
 	return sips.PinStatus{
-		RequestID: strconv.FormatUint(dbpin.ID, 16),
+		RequestID: strconv.FormatInt(int64(dbpin.ID), 16),
 		Status:    dbpin.Status,
-		Created:   dbpin.Created,
+		Created:   dbpin.CreateTime,
 		Delegates: id.Addresses,
 		Pin:       pin,
-	}, tx.Commit()
+	}, nil
 }
 
 func (h PinHandler) GetPin(ctx context.Context, requestID string) (sips.PinStatus, error) {
-	pinID, err := strconv.ParseUint(requestID, 16, 64)
+	pinID, err := strconv.ParseInt(requestID, 16, 64)
 	if err != nil {
 		return sips.PinStatus{}, BadRequest(log.Errorf("parse request ID %q: %w", requestID, err))
 	}
 
-	tx, err := h.DB.Begin(false)
+	tx, err := h.DB.Tx(ctx)
 	if err != nil {
 		return sips.PinStatus{}, log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	user, err := auth(ctx, tx)
+	u, err := auth(ctx, tx)
 	if err != nil {
 		return sips.PinStatus{}, Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
-	var pin dbs.Pin
-	err = tx.One("ID", pinID, &pin)
+	pin, err := u.QueryPins().
+		Where(pin.ID(int(pinID))).
+		Only(ctx)
 	if err != nil {
-		err = log.Errorf("find pin %v: %w", requestID, err)
-		if errors.Is(err, storm.ErrNotFound) {
-			err = NotFound(err)
+		if ent.IsNotFound(err) {
+			return sips.PinStatus{}, NotFound(log.Errorf("query pin %q: %w", requestID, err))
 		}
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("query pin %q: %w", requestID, err)
 	}
 
-	if pin.User != user.ID {
-		return sips.PinStatus{}, NotFound(log.Errorf("find pin %v: %w", requestID, storm.ErrNotFound))
+	err = tx.Commit()
+	if err != nil {
+		return sips.PinStatus{}, log.Errorf("commit transaction: %w", err)
 	}
 
 	return sips.PinStatus{
 		RequestID: requestID,
-		Status:    sips.Pinned,
-		Created:   pin.Created,
+		Status:    pin.Status,
+		Created:   pin.CreateTime,
 		Pin: sips.Pin{
 			CID:  pin.CID,
 			Name: pin.Name,
@@ -148,169 +174,128 @@ func (h PinHandler) GetPin(ctx context.Context, requestID string) (sips.PinStatu
 	}, nil
 }
 
-func (h PinHandler) UpdatePin(ctx context.Context, requestID string, pin sips.Pin) (sips.PinStatus, error) {
-	pinID, err := strconv.ParseUint(requestID, 16, 64)
+func (h PinHandler) UpdatePin(ctx context.Context, requestID string, spin sips.Pin) (sips.PinStatus, error) {
+	pinID, err := strconv.ParseInt(requestID, 16, 64)
 	if err != nil {
-		return sips.PinStatus{}, BadRequest(log.Errorf("parse request ID: %q: %w", requestID, err))
+		return sips.PinStatus{}, BadRequest(log.Errorf("parse request ID %q: %w", requestID, err))
 	}
 
-	tx, err := h.DB.Begin(true)
+	tx, err := h.DB.Tx(ctx)
 	if err != nil {
 		return sips.PinStatus{}, log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	user, err := auth(ctx, tx)
+	u, err := auth(ctx, tx)
 	if err != nil {
-		return sips.PinStatus{}, NotFound(log.Errorf("authenticate: %w", err))
+		return sips.PinStatus{}, Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
-	var dbpin dbs.Pin
-	err = tx.One("ID", pinID, &dbpin)
+	oldpin, err := u.QueryPins().
+		Where(pin.ID(int(pinID))).
+		Only(ctx)
 	if err != nil {
-		err = log.Errorf("find pin %v: %w", requestID, err)
-		if errors.Is(err, storm.ErrNotFound) {
-			err = NotFound(err)
+		if ent.IsNotFound(err) {
+			return sips.PinStatus{}, NotFound(log.Errorf("query pin %q: %w", requestID, err))
 		}
-		return sips.PinStatus{}, err
+		return sips.PinStatus{}, log.Errorf("query pin %q: %w", requestID, err)
 	}
 
-	if dbpin.User != user.ID {
-		return sips.PinStatus{}, NotFound(log.Errorf("find pin %v: %w", requestID, storm.ErrNotFound))
-	}
-
-	oldpin := dbpin
-	dbpin.Status = sips.Queued
-	dbpin.Name = pin.Name
-	dbpin.CID = pin.CID
-	dbpin.Origins = pin.Origins
-	err = tx.Update(&dbpin)
+	newpin, err := tx.Pin.UpdateOne(oldpin).
+		SetStatus(sips.Queued).
+		SetCID(spin.CID).
+		SetName(spin.Name).
+		SetOrigins(spin.Origins).
+		Save(ctx)
 	if err != nil {
-		return sips.PinStatus{}, log.Errorf("update pin %v: %w", requestID, err)
+		return sips.PinStatus{}, log.Errorf("update pin %q: %w", requestID, err)
 	}
 
 	select {
 	case <-ctx.Done():
-		return sips.PinStatus{}, log.Errorf("queue update %v: %w", requestID, ctx.Err())
-	case h.Queue.Update() <- [2]dbs.Pin{oldpin, dbpin}:
+		return sips.PinStatus{}, log.Errorf("queue update %q: %w", requestID, ctx.Err())
+	case h.Queue.Update() <- [2]*ent.Pin{oldpin, newpin}:
 	}
 
 	id, err := h.IPFS.ID(ctx)
 	if err != nil {
-		log.Errorf("get IPFS id: %w", err)
+		log.Errorf("get IPFS ID: %w", err)
 		// Purposefully don't return here.
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return sips.PinStatus{}, log.Errorf("commit transaction: %w", err)
 	}
 
 	return sips.PinStatus{
 		RequestID: requestID,
-		Status:    dbpin.Status,
-		Created:   dbpin.Created,
+		Status:    newpin.Status,
+		Created:   newpin.CreateTime,
 		Delegates: id.Addresses,
 		Pin: sips.Pin{
-			CID:  pin.CID,
-			Name: pin.Name,
+			CID:  newpin.CID,
+			Name: newpin.Name,
 		},
-	}, tx.Commit()
+	}, nil
 }
 
 func (h PinHandler) DeletePin(ctx context.Context, requestID string) error {
-	pinID, err := strconv.ParseUint(requestID, 16, 64)
+	pinID, err := strconv.ParseInt(requestID, 16, 64)
 	if err != nil {
 		return BadRequest(log.Errorf("parse request ID %q: %w", requestID, err))
 	}
 
-	tx, err := h.DB.Begin(false)
+	tx, err := h.DB.Tx(ctx)
 	if err != nil {
 		return log.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	user, err := auth(ctx, tx)
+	u, err := auth(ctx, tx)
 	if err != nil {
 		return Unauthorized(log.Errorf("authenticate: %w", err))
 	}
 
-	var pin dbs.Pin
-	err = tx.One("ID", pinID, &pin)
+	pin, err := u.QueryPins().
+		Where(pin.ID(int(pinID))).
+		Only(ctx)
 	if err != nil {
-		err = log.Errorf("find pin %v: %w", requestID, err)
-		if errors.Is(err, storm.ErrNotFound) {
-			err = NotFound(err)
+		if ent.IsNotFound(err) {
+			return NotFound(log.Errorf("query pin %q: %w", requestID, err))
 		}
-		return err
+		return log.Errorf("query pin %q: %w", requestID, err)
 	}
 
-	if pin.User != user.ID {
-		return NotFound(log.Errorf("find pin %v: %w", requestID, storm.ErrNotFound))
+	err = h.DB.Pin.DeleteOne(pin).Exec(ctx)
+	if err != nil {
+		return log.Errorf("delete pin %q: %w", requestID, err)
 	}
 
 	select {
 	case <-ctx.Done():
-		return log.Errorf("queue delete %v: %w", requestID, ctx.Err())
+		return log.Errorf("queue delete %q: %w", requestID, ctx.Err())
 	case h.Queue.Delete() <- pin:
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return log.Errorf("commit transaction: %w", err)
 	}
 
 	return nil
 }
 
-func auth(ctx context.Context, db storm.Node) (user dbs.User, err error) {
-	tokID, _ := sips.Token(ctx)
+func auth(ctx context.Context, db *ent.Tx) (u *ent.User, err error) {
+	tokstr, _ := sips.Token(ctx)
 
-	var tok dbs.Token
-	err = db.One("ID", tokID, &tok)
+	tok, err := db.Token.Query().
+		WithUser().
+		Where(token.Token(tokstr)).
+		Only(ctx)
 	if err != nil {
-		return dbs.User{}, fmt.Errorf("find token %v: %w", tokID, err)
+		return nil, fmt.Errorf("find token %q: %w", tokstr, err)
 	}
 
-	err = db.One("ID", tok.User, &user)
-	if err != nil {
-		return dbs.User{}, fmt.Errorf("find user: %w", err)
-	}
-
-	return user, nil
-}
-
-type queryMatcher struct {
-	Query sips.PinQuery
-}
-
-func (qm queryMatcher) Match(v interface{}) (bool, error) {
-	pin, ok := v.(dbs.Pin)
-	if !ok {
-		return false, fmt.Errorf("expected pin, not %T", v)
-	}
-
-	if len(qm.Query.CID) != 0 {
-		var found bool
-		for _, cid := range qm.Query.CID {
-			if cid == pin.CID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false, nil
-		}
-	}
-
-	if qm.Query.Name != "" {
-		if !qm.Query.Match.Match(pin.Name, qm.Query.Name) {
-			return false, nil
-		}
-	}
-
-	// TODO: Handle statuses.
-
-	if !qm.Query.Before.IsZero() {
-		if !pin.Created.After(qm.Query.Before) {
-			return false, nil
-		}
-	}
-	if !qm.Query.After.IsZero() {
-		if !pin.Created.Before(qm.Query.After) {
-			return false, nil
-		}
-	}
-
-	return true, nil
+	return tok.Edges.User, nil
 }

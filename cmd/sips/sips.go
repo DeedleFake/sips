@@ -24,9 +24,18 @@ func run(ctx context.Context) error {
 	addr := flag.String("addr", ":8080", "address to serve HTTP on")
 	api := flag.String("api", "http://127.0.0.1:5001", "IPFS API to contact")
 	apitimeout := flag.Duration("apitimeout", 30*time.Second, "timeout for requests to the IPFS API")
+	dbdriver := flag.String("dbdriver", "postgres", "database driver to use (\"list\" to show available)")
 	rawdbpath := flag.String("db", "host=/var/run/postgresql dbname=sips", "path to database ($CONFIG will be replaced with user config dir path)")
 	domigration := flag.Bool("migrate", true, "perform a database migration upon starting")
 	flag.Parse()
+
+	if *dbdriver == "list" {
+		fmt.Println("Available database drivers:")
+		for _, t := range db.Drivers() {
+			fmt.Printf("  %s\n", t)
+		}
+		return nil
+	}
 
 	dbpath, configDirUsed, err := cli.ExpandConfig(*rawdbpath)
 	if err != nil {
@@ -46,7 +55,7 @@ func run(ctx context.Context) error {
 			return fmt.Errorf("create config directory: %w", err)
 		}
 	}
-	entc, err := db.Open("postgres", dbpath)
+	entc, err := db.Open(*dbdriver, dbpath)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}

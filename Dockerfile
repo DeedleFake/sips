@@ -1,7 +1,9 @@
-FROM golang:1.17-alpine AS build
+FROM golang:1.18-alpine AS build
 
 WORKDIR /build
 COPY . /build
+
+RUN apk add git
 
 ENV CGO_ENABLED 0
 RUN go build -o sips ./cmd/sips

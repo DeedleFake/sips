@@ -5,7 +5,7 @@ go 1.17
 require (
 	entgo.io/ent v0.9.1
 	github.com/asdine/storm v2.1.2+incompatible
-	github.com/gorilla/mux v1.8.0
+	github.com/julienschmidt/httprouter v1.3.0
 	github.com/lib/pq v1.10.3
 	github.com/mattn/go-sqlite3 v1.14.9
 	github.com/spf13/cobra v1.2.1

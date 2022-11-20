@@ -427,10 +427,10 @@ func reasonFromStatus(status int) string {
 // client.
 //
 // Several status codes have special handling. These include
-//    - 400 Bad Request
-//    - 401 Unauthorized
-//    - 404 Not Found
-//    - 409 Conflict
+//   - 400 Bad Request
+//   - 401 Unauthorized
+//   - 404 Not Found
+//   - 409 Conflict
 //
 // These status codes will produce special error messages for the
 // client. All other status codes will produce the same error message

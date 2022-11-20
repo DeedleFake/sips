@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/julienschmidt/httprouter"
 )
 
 var (
@@ -93,38 +93,44 @@ type handler struct {
 // related subpaths, so the user does not need to strip the prefix in
 // order to use it.
 func Handler(h PinHandler) http.Handler {
-	r := mux.NewRouter()
+	r := httprouter.New()
+	r.HandleOPTIONS = true
+	r.GlobalOPTIONS = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		if req.Header.Get("Access-Control-Request-Method") != "" {
+			wh := rw.Header()
+			wh.Set("Access-Control-Allow-Methods", wh.Get("Allow"))
+			wh.Set("Access-Control-Allow-Origin", "*")
+		}
 
-	handler := handler{h: h}
-	r.Methods("GET", "OPTIONS").Path("/pins").HandlerFunc(handler.getPins)
-	r.Methods("POST", "OPTIONS").Path("/pins").HandlerFunc(handler.postPins)
-	r.Methods("GET", "OPTIONS").Path("/pins/{requestID}").HandlerFunc(handler.getPinByID)
-	r.Methods("POST", "OPTIONS").Path("/pins/{requestID}").HandlerFunc(handler.postPinByID)
-	r.Methods("DELETE", "OPTIONS").Path("/pins/{requestID}").HandlerFunc(handler.deletePinByID)
-	r.Use(mux.CORSMethodMiddleware(r))
-	r.Use(func(h http.Handler) http.Handler {
-		return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			rw.Header().Set("Content-Type", "application/json")
-
-			token, ok := tokenFromRequest(req)
-			if !ok {
-				respondError(
-					rw,
-					http.StatusUnauthorized,
-					errNoToken,
-				)
-				return
-			}
-			req = req.WithContext(withToken(req.Context(), token))
-
-			h.ServeHTTP(rw, req)
-		})
+		rw.WriteHeader(http.StatusNoContent)
 	})
 
-	return r
+	handler := handler{h: h}
+	r.GET("/pins", handler.getPins)
+	r.POST("/pins", handler.postPins)
+	r.GET("/pins/:requestID", handler.getPinByID)
+	r.POST("/pins/:requestID", handler.postPinByID)
+	r.DELETE("/pins/:requestID", handler.deletePinByID)
+
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+
+		token, ok := tokenFromRequest(req)
+		if !ok {
+			respondError(
+				rw,
+				http.StatusUnauthorized,
+				errNoToken,
+			)
+			return
+		}
+		req = req.WithContext(withToken(req.Context(), token))
+
+		r.ServeHTTP(rw, req)
+	})
 }
 
-func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
+func (h handler) getPins(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	ctx := req.Context()
 
 	q := req.URL.Query()
@@ -248,7 +254,7 @@ func (h handler) getPins(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
+func (h handler) postPins(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	ctx := req.Context()
 
 	body, err := io.ReadAll(req.Body)
@@ -281,11 +287,10 @@ func (h handler) postPins(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request) {
+func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	ctx := req.Context()
 
-	vars := mux.Vars(req)
-	id := vars["requestID"]
+	id := params[0].Value
 	if id == "" {
 		respondError(
 			rw,
@@ -308,11 +313,10 @@ func (h handler) getPinByID(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
+func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	ctx := req.Context()
 
-	vars := mux.Vars(req)
-	id := vars["requestID"]
+	id := params[0].Value
 	if id == "" {
 		respondError(
 			rw,
@@ -352,11 +356,10 @@ func (h handler) postPinByID(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (h handler) deletePinByID(rw http.ResponseWriter, req *http.Request) {
+func (h handler) deletePinByID(rw http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	ctx := req.Context()
 
-	vars := mux.Vars(req)
-	id := vars["requestID"]
+	id := params[0].Value
 	if id == "" {
 		respondError(
 			rw,
@@ -424,10 +427,10 @@ func reasonFromStatus(status int) string {
 // client.
 //
 // Several status codes have special handling. These include
-//    - 400 Bad Request
-//    - 401 Unauthorized
-//    - 404 Not Found
-//    - 409 Conflict
+//   - 400 Bad Request
+//   - 401 Unauthorized
+//   - 404 Not Found
+//   - 409 Conflict
 //
 // These status codes will produce special error messages for the
 // client. All other status codes will produce the same error message

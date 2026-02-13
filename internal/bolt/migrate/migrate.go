@@ -6,6 +6,7 @@ package migrate
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"time"
 
@@ -31,16 +32,10 @@ type migrationRegistration struct {
 }
 
 func register(version time.Time, migration Migration) {
-	i := sort.Search(len(migrations), func(i int) bool {
-		return version.Unix() <= migrations[i].V.Unix()
+	i, _ := slices.BinarySearchFunc(migrations, version, func(m migrationRegistration, v time.Time) int {
+		return m.V.Compare(v)
 	})
-	migrations = append(
-		migrations[:i],
-		append(
-			[]migrationRegistration{{V: version, M: migration}},
-			migrations[i:]...,
-		)...,
-	)
+	migrations = slices.Insert(migrations, i, migrationRegistration{V: version, M: migration})
 }
 
 func run(db *storm.DB, migration migrationRegistration) error {

@@ -37,7 +37,7 @@ func getLocation() string {
 }
 
 // Infof logs an informational message.
-func Infof(str string, args ...interface{}) {
+func Infof(str string, args ...any) {
 	loc := getLocation()
 	msg := fmt.Sprintf(str, args...)
 	info.Printf("(%v) %v", loc, msg)
@@ -45,7 +45,7 @@ func Infof(str string, args ...interface{}) {
 
 // Errorf logs an error. As a special case, it returns a new error
 // constructed from its arguments via fmt.Errorf.
-func Errorf(str string, args ...interface{}) error {
+func Errorf(str string, args ...any) error {
 	loc := getLocation()
 	nerr := fmt.Errorf(str, args...)
 	err.Printf("(%v) %v", loc, nerr)
@@ -53,7 +53,7 @@ func Errorf(str string, args ...interface{}) error {
 }
 
 // Fatalf logs a fatal error and immediately exits.
-func Fatalf(str string, args ...interface{}) {
+func Fatalf(str string, args ...any) {
 	loc := getLocation()
 	fatal.Fatalf("(%v) %v", loc, fmt.Sprintf(str, args...))
 }

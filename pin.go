@@ -28,15 +28,15 @@ type PinStatus struct {
 	Status    RequestStatus `json:"status"`
 	Created   time.Time     `json:"created"`
 	Delegates []string      `json:"delegates,omitempty"`
-	Info      interface{}   `json:"info,omitempty"`
+	Info      any           `json:"info,omitempty"`
 
 	Pin Pin `json:"pin"`
 }
 
 // Pin describes a single pinned item.
 type Pin struct {
-	CID     string      `json:"cid"`
-	Name    string      `json:"name"`
-	Origins []string    `json:"origins,omitempty"`
-	Meta    interface{} `json:"meta,omitempty"`
+	CID     string   `json:"cid"`
+	Name    string   `json:"name"`
+	Origins []string `json:"origins,omitempty"`
+	Meta    any      `json:"meta,omitempty"`
 }

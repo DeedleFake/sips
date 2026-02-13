@@ -36,7 +36,7 @@ type PinQuery struct {
 	// json using the encoding/json package, so it will likely be a
 	// map[string]interface{}, but it might not be, either. It is up to
 	// the handler to deal with this as it sees fit.
-	Meta interface{}
+	Meta any
 }
 
 func defaultPinQuery() PinQuery {
@@ -74,7 +74,7 @@ func (tms TextMatchingStrategy) Match(haystack, needle string) bool {
 		return needle == haystack
 
 	case IExact:
-		return strings.ToLower(needle) == strings.ToLower(haystack)
+		return strings.EqualFold(needle, haystack)
 
 	case Partial:
 		return strings.Contains(haystack, needle)

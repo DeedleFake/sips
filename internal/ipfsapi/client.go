@@ -30,7 +30,7 @@ func NewClient(options ...ClientOption) *Client {
 	return &c
 }
 
-func (c *Client) post(ctx context.Context, data interface{}, endpoint string, args url.Values) error {
+func (c *Client) post(ctx context.Context, data any, endpoint string, args url.Values) error {
 	rsp, err := c.postResponse(ctx, endpoint, args)
 	if err != nil {
 		return fmt.Errorf("post: %w", err)

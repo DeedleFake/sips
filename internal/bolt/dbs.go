@@ -14,7 +14,7 @@ func Open(path string) (*storm.DB, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	init := func(t interface{}) {
+	init := func(t any) {
 		if err != nil {
 			return
 		}
